@@ -1,1 +1,31 @@
-# AirCallDemoRecording
+# Timberline Aircall/Monday Recording Controller
+
+This repository is an **audit-only, fail-closed baseline** for future development of a recording controller. It contains only portable consent classification and canonical-record resolution logic with unit tests.
+
+## Current status
+
+- **Recording is NOT enabled.** This repository cannot enable, start, resume, pause, or otherwise control recording.
+- **The classifier is audit-only.** It always returns `action: 'leave_disabled'`; even an eligible one-party state is reported only as `audit_only_eligible_one_party_state`.
+- No provider clients, webhooks, service routes, deployment assets, runtime configuration, or production integrations are included.
+- This repository does **not** contain credentials, secrets, or production configuration.
+- Any future move beyond audit-only operation requires explicit approval from **Dave Donovan** and separate review of the applicable legal, operational, security, and provider controls.
+
+## Trust boundaries and baseline behavior
+
+- Invalid, missing, ambiguous, malformed, or hostile inputs leave recording disabled.
+- The audit classifier uses a supplied, version-approved ruleset solely to label an eligible one-party state. A controller policy, including an active-looking policy, has no authorization role in this baseline.
+- Canonical-record adapters are a raw-payload boundary: `getConsentLeadById` must return either `null` (not found) or a **JSON object string**; `findConsentLeadsByPhone` must return a **JSON array string**. The resolver calls `JSON.parse` itself and only then creates its canonical plain records. Object returns, Proxies, malformed JSON, and wrong top-level shapes are rejected.
+- Canonical state accepts only structured JSON provenance of the form `{ value, source: 'rep_verified_controlled_state_dropdown', verified: true }` (with the source configured by the caller). Maps/candidate evidence, free text, unverified data, lookup errors, and ambiguous phone associations are rejected.
+
+The source-of-truth policy for callback business state is documented in [docs/callback-business-state-policy.md](docs/callback-business-state-policy.md). The safe audit-only fixture is [policy/recording-controller.policy.json](policy/recording-controller.policy.json).
+
+## Local verification
+
+This baseline has no runtime dependencies. It requires **Node.js 20 or later**. With a supported Node.js release installed:
+
+```sh
+npm test
+git diff --check
+```
+
+Do not add real credentials to this checkout. Local `.env*`, audit data, runtime data, and common key/certificate files are intentionally ignored.

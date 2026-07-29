@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "controllerStatus": "DISABLED",
+  "operatingMode": "AUDIT_ONLY",
+  "recordingActionsPermitted": false,
+  "canonicalBoard": "Callbacks",
+  "authoritativeStateSource": "rep_verified_controlled_state_dropdown",
+  "mapsResearch": "candidate_evidence_only",
+  "approvalGate": {
+    "required": true,
+    "approver": "Dave Donovan",
+    "status": "NOT_APPROVED"
+  },
+  "legalRuleset": null,
+  "notes": "Safe audit-only fixture only. The baseline classifier always leaves recording disabled; this is not a live legal ruleset, provider configuration, or authorization to record."
+}

@@ -1,0 +1,40 @@
+# Environment and local configuration (a deliberately valueless .env.example may be tracked)
+.env*
+!.env.example
+*.local
+
+# Dependencies and Node runtime output
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+.nyc_output/
+
+# Audit and runtime data
+/audit/
+/audit-data/
+/runtime/
+/runtime-data/
+*.jsonl
+*.sqlite
+*.sqlite3
+*.db
+
+# Credentials, keys, certificates, and secret-bearing configuration
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials*.json
+service-account*.json
+secrets*.json
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

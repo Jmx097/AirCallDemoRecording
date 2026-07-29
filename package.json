@@ -1,0 +1,13 @@
+{
+  "name": "timberline-aircall-monday-recording-controller",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "description": "Audit-first, fail-closed consent baseline; no recording integration is enabled.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
