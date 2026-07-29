@@ -4,9 +4,10 @@ This repository is an **audit-only, fail-closed baseline** for future developmen
 
 ## Current status
 
-- **Recording is NOT enabled.** This repository cannot enable, start, resume, pause, or otherwise control recording.
+- **Recording is NOT enabled.** The audit-only controller flow cannot enable, start, resume, pause, or otherwise control recording.
 - **The classifier is audit-only.** It always returns `action: 'leave_disabled'`; even an eligible one-party state is reported only as `audit_only_eligible_one_party_state`.
-- No provider clients, webhooks, service routes, deployment assets, runtime configuration, or production integrations are included.
+- A tested, standalone Aircall provider-client contract exists only for the per-call `resume_recording` endpoint. It is **not wired** into the controller or consent/resolver logic, is not configured, makes no live request in this baseline, and cannot be called by the audit-only controller flow.
+- No webhooks, service routes, deployment assets, runtime configuration, or production integrations are included.
 - This repository does **not** contain credentials, secrets, or production configuration.
 - Any future move beyond audit-only operation requires explicit approval from **Dave Donovan** and separate review of the applicable legal, operational, security, and provider controls.
 
