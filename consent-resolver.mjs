@@ -76,7 +76,7 @@ function parseNativePayload(payload) {
 function parsePhonePayload(payload) {
   if (typeof payload !== "string") return null;
   const parsed = parseJson(payload);
-  return Array.isArray(parsed) && Object.getPrototypeOf(parsed) === Array.prototype ? parsed : null;
+  return isPlainArray(parsed) ? parsed : null;
 }
 
 function parseJson(payload) {
@@ -120,7 +120,7 @@ function validatedProvenanceState(value, expectedSource) {
 
 function hasMatchingTrustedPhone(item, expectedPhone) {
   if (normalizedPhone(item.phoneDigits) === expectedPhone) return true;
-  if (!Array.isArray(item.phones) || Object.getPrototypeOf(item.phones) !== Array.prototype) return false;
+  if (!isPlainArray(item.phones)) return false;
   return item.phones.some((phone) => normalizedPhone(phone) === expectedPhone);
 }
 
@@ -135,7 +135,19 @@ function ownDataSnapshot(value, keys) {
 }
 
 function isJsonRecord(value) {
-  return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+  try {
+    return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+  } catch {
+    return false;
+  }
+}
+
+function isPlainArray(value) {
+  try {
+    return Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype;
+  } catch {
+    return false;
+  }
 }
 
 function opaqueIdentifier(value) {
