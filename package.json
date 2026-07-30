@@ -9,5 +9,8 @@
   "description": "Audit-first, fail-closed consent baseline; no recording integration is enabled.",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
   }
 }
