@@ -61,10 +61,11 @@ export function createAuditOnlyRuntime({ env = process.env, createStore = create
   if (typeof createStore !== "function" || typeof createReceiver !== "function") throw new TypeError("invalid_audit_runtime_dependencies");
   const store = createStore({ databaseUrl: config.databaseUrl });
   const storeReady = observeStoreReadiness(store);
+  const receiverStore = receiverStoreFacade(store);
   const mondayQuery = createReadOnlyMondayQuery({ mondayToken: config.mondayToken, fetchImpl });
   let receiver;
   try {
-    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
+    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store: receiverStore, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
   } catch (error) {
     void closeQuietly(store);
     throw error;
@@ -131,6 +132,15 @@ function observeStoreReadiness(store) {
     void failed.catch(() => undefined);
     return failed;
   }
+}
+function receiverStoreFacade(store) {
+  try {
+    if (!store || typeof store !== "object") throw new Error();
+    const claim = ownData(store, "claim"); const finalize = ownData(store, "finalize"); const release = ownData(store, "release"); const initialize = ownData(store, "initialize");
+    if (![claim, finalize, release, initialize].every((value) => typeof value === "function")) throw new Error();
+    // Bind methods to the original store so the receiver/service cannot alter their receiver.
+    return Object.freeze({ claim: claim.bind(store), finalize: finalize.bind(store), release: release.bind(store), initialize: initialize.bind(store) });
+  } catch { throw new TypeError("invalid_audit_runtime_store"); }
 }
 async function awaitBounded(promise, timeoutMs) {
   let timer;

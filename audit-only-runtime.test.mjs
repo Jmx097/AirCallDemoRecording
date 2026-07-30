@@ -15,7 +15,7 @@ function response(body, options = {}) { return responseFromChunks([body], { ...o
 function nativeBody() { return JSON.stringify({ data: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "TX" }] }] }, extensions: { secret: "must not escape" } }); }
 async function withProcessEnvironment(values, work) {
   const saved = Object.fromEntries(Object.keys(values).map((key) => [key, Object.getOwnPropertyDescriptor(process.env, key)]));
-  try { for (const [key, value] of Object.entries(values)) process.env[key] = value; return await work(); }
+  try { for (const [key, value] of Object.entries(values)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } return await work(); }
   finally { for (const [key, descriptor] of Object.entries(saved)) { if (descriptor) Object.defineProperty(process.env, key, descriptor); else delete process.env[key]; } }
 }
 
@@ -29,7 +29,7 @@ test("runtime config requires safe required env, fixes mapping and loopback", ()
 });
 
 test("default Node process.env is snapshotted safely without dotenv or prototype rejection", async () => {
-  await withProcessEnvironment(env, async () => {
+  await withProcessEnvironment({ ...env, AIRCALL_AUDIT_PORT: undefined, AIRCALL_AUDIT_HOST: undefined }, async () => {
     const config = readAuditOnlyRuntimeConfig();
     assert.equal(config.host, "127.0.0.1"); assert.equal(config.port, 8080); assert.equal(config.expectedWebhookToken, env.AIRCALL_AUDIT_WEBHOOK_TOKEN);
   });
@@ -53,19 +53,20 @@ test("Monday response cap is byte-based for absent length chunked and non-ASCII 
   await assert.rejects(invoke(async () => response("{}", { length: 256 * 1024 + 1 })), /monday_response_too_large/);
 });
 
-test("runtime composition is unstarted, redacts public config, and passes only fixed loopback settings", () => {
-  const calls = []; const store = { close: async () => { calls.push("store.close"); }, ready: Promise.resolve(), claim: async () => {}, finalize: async () => {}, release: async () => {} };
+test("runtime composition is unstarted, redacts public config, and passes only fixed loopback settings", async () => {
+  const calls = []; const store = { close: async () => { calls.push("store.close"); }, ready: Promise.resolve(), async initialize() { assert.equal(this, store); }, async claim() { assert.equal(this, store); }, async finalize() { assert.equal(this, store); }, async release() { assert.equal(this, store); } };
   const receiver = { start: async () => {}, close: async () => { calls.push("receiver.close"); } };
   const runtime = createAuditOnlyRuntime({ env, createStore: (config) => { calls.push(config); return store; }, createReceiver: (config) => { calls.push(config); return receiver; }, fetchImpl: async () => response(nativeBody()) });
   assert.equal(runtime.receiver, receiver); assert.equal(calls.filter((x) => x === "receiver.close").length, 0);
   assert.deepEqual(runtime.config, { host: "127.0.0.1", port: 8080, canonicalBoardId: "9062504443", stateColumnId: "dropdown_mm5ht9fz", phoneColumnIds: ["phone_mkqkk6nv", "phone_mkqk71tf"], stateSource: "rep_verified_controlled_state_dropdown", mode: "audit_only", recordingActionsPermitted: false });
-  const receiverConfig = calls.find((x) => x && x.host); assert.equal(receiverConfig.host, "127.0.0.1"); assert.equal(receiverConfig.port, 8080); assert.equal("databaseUrl" in receiverConfig, false); assert.equal("mondayToken" in receiverConfig, false);
+  const receiverConfig = calls.find((x) => x && x.host); assert.equal(receiverConfig.host, "127.0.0.1"); assert.equal(receiverConfig.port, 8080); assert.equal("databaseUrl" in receiverConfig, false); assert.equal("mondayToken" in receiverConfig, false); assert.equal("ready" in receiverConfig.store, false); assert.equal(typeof receiverConfig.store.initialize, "function");
+  await receiverConfig.store.initialize(); await receiverConfig.store.claim(); await receiverConfig.store.finalize(); await receiverConfig.store.release();
 });
 
 test("startup consumes an eager rejected ready promise, fails redacted, closes store, and never binds", async () => {
   let starts = 0; let closes = 0;
   const rejectedReady = Promise.reject(new Error("unreachable database details"));
-  const runtime = createAuditOnlyRuntime({ env, createStore: () => ({ ready: rejectedReady, close: async () => { closes += 1; }, claim: async () => {}, finalize: async () => {}, release: async () => {} }), createReceiver: () => ({ start: async () => { starts += 1; }, close: async () => {} }), fetchImpl: async () => response(nativeBody()) });
+  const runtime = createAuditOnlyRuntime({ env, createStore: () => ({ ready: rejectedReady, initialize: async () => {}, close: async () => { closes += 1; }, claim: async () => {}, finalize: async () => {}, release: async () => {} }), createReceiver: () => ({ start: async () => { starts += 1; }, close: async () => {} }), fetchImpl: async () => response(nativeBody()) });
   await assert.rejects(startAuditOnlyRuntime(runtime, { startupTimeoutMs: 100 }), (error) => error.message === "audit_runtime_startup_failed");
   assert.equal(starts, 0); assert.equal(closes, 1);
 });
