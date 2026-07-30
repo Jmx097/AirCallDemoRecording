@@ -8,7 +8,7 @@ const PHONE = "15551234567";
 const CALL = "call-local-1";
 const baseRules = { version: "receiver-v1", states: { TX: true } };
 
-function item() { return { id: "lead-1", board: { id: "board-1" }, column_values: [{ id: "state", text: "TX", type: "status" }, { id: "phone", text: PHONE, type: "phone" }] }; }
+function item(consent = "Verified — Permit Recording", type = "dropdown") { return { id: "lead-1", board: { id: "board-1" }, column_values: [{ id: "state", text: "TX", type: "status" }, { id: "recording_consent", text: consent, type }, { id: "phone", text: PHONE, type: "phone" }] }; }
 function fakeStore(overrides = {}) {
   const calls = { claim: [], finalize: [], release: [], ready: 0, close: 0 };
   const seen = new Set();
@@ -25,7 +25,7 @@ function fakeStore(overrides = {}) {
 function config(overrides = {}) {
   const fake = fakeStore(); let queries = 0;
   return { fake, get queries() { return queries; }, value: {
-    expectedWebhookToken: TOKEN, canonicalBoardId: "board-1", stateColumnId: "state", phoneColumnIds: ["phone"], stateSource: "rep_verified_controlled_state_dropdown",
+    expectedWebhookToken: TOKEN, canonicalBoardId: "board-1", stateColumnId: "state", consentColumnId: "recording_consent", phoneColumnIds: ["phone"], stateSource: "rep_verified_controlled_state_dropdown",
     mondayQuery(request) { queries++; assert.match(request.query, /ReadCanonicalPhoneMatches/); return { data: { items_page_by_column_values: { items: [item()] } } }; },
     store: fake.store, ruleset: baseRules, approvedRulesetVersions: new Set(["receiver-v1"]), ...overrides,
   } };
@@ -87,6 +87,18 @@ test("authentication, malformed body, body limit, and valid audit finalization a
   assert.equal(run.fake.calls.finalize.length, 1); const [{ claim, outcome, metadata }] = run.fake.calls.finalize;
   assert.match(claim.key, /^[a-f0-9]{64}$/); assert.deepEqual(outcome, { outcome: "left_disabled", reason: "audit_only_eligible_one_party_state" }); assert.deepEqual(Object.keys(metadata), ["correlation"]);
   assert.equal(JSON.stringify(metadata).includes(PHONE), false); assert.equal(JSON.stringify(metadata).includes(CALL), false); await run.receiver.close();
+});
+
+test("non-permit, malformed, and missing recording consent fail closed as left_disabled", async () => {
+  const missingConsent = item().column_values.filter((column) => column.id !== "recording_consent");
+  const cases = [item(""), item("Verified — Do Not Record"), item("unexpected"), item("Verified — Permit Recording", "status"), { ...item(), column_values: missingConsent }];
+  for (const candidate of cases) {
+    const run = await running({ mondayQuery() { return { data: { items_page_by_column_values: { items: [candidate] } } }; } });
+    const result = await post(run.url);
+    assert.equal(result.response.status, 202);
+    assert.deepEqual(result.body, { accepted: true, outcome: "left_disabled", reason: "resolver_not_found" });
+    await run.receiver.close();
+  }
 });
 
 test("duplicates and dependency failures have allowlisted responses", async () => {

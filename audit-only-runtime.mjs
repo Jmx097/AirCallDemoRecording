@@ -31,7 +31,7 @@ export function readAuditOnlyRuntimeConfig(env = process.env) {
   const port = optionalPort(safeEnv.AIRCALL_AUDIT_PORT);
   if (safeEnv.AIRCALL_AUDIT_HOST !== undefined && safeEnv.AIRCALL_AUDIT_HOST !== HOST) throw new TypeError("invalid_audit_runtime_host");
   return Object.freeze({ expectedWebhookToken: token, databaseUrl, mondayToken, host: HOST, port,
-    canonicalBoardId: "9062504443", stateColumnId: "dropdown_mm5ht9fz", phoneColumnIds: Object.freeze(["phone_mkqkk6nv", "phone_mkqk71tf"]),
+    canonicalBoardId: "9062504443", stateColumnId: "dropdown_mm5ht9fz", consentColumnId: "dropdown_mm5rm7vc", phoneColumnIds: Object.freeze(["phone_mkqkk6nv", "phone_mkqk71tf"]),
     stateSource: "rep_verified_controlled_state_dropdown", ruleset: AUDIT_RULESET, approvedRulesetVersions: APPROVED_AUDIT_RULESET_VERSIONS });
 }
 
@@ -44,7 +44,7 @@ export function createReadOnlyMondayQuery({ mondayToken, fetchImpl = globalThis.
       const response = await fetchImpl(MONDAY_ENDPOINT, { method: "POST", headers: Object.freeze({ authorization: mondayToken, "content-type": "application/json", accept: "application/json" }), body: JSON.stringify({ query: request.query, variables: request.variables }), redirect: "error", signal: AbortSignal.timeout(5_000) });
       if (!response || response.ok !== true) throw new Error("monday_read_failed");
       const body = await boundedJson(response);
-      const sanitized = sanitizeMondayResponse(request.query, body);
+      const sanitized = sanitizeMondayResponse(request, body);
       if (!sanitized) throw new Error("monday_read_failed");
       return sanitized;
     } catch (error) {
@@ -65,7 +65,7 @@ export function createAuditOnlyRuntime({ env = process.env, createStore = create
   const mondayQuery = createReadOnlyMondayQuery({ mondayToken: config.mondayToken, fetchImpl });
   let receiver;
   try {
-    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store: receiverStore, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
+    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, consentColumnId: config.consentColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store: receiverStore, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
   } catch (error) {
     void closeQuietly(store);
     throw error;
@@ -176,15 +176,19 @@ async function readCappedResponseBytes(body, limit) {
   return Buffer.concat(chunks, size);
 }
 function toBytes(value) { if (value instanceof Uint8Array) return value; if (value instanceof ArrayBuffer) return new Uint8Array(value); return null; }
-function sanitizeMondayResponse(query, value) {
+function sanitizeMondayResponse(request, value) {
+  const { query, variables } = request;
+  const selectedColumnIds = selectedColumns(variables);
+  if (!selectedColumnIds) return null;
   if (!plainRecord(value) || !plainRecord(value.data)) return null;
-  if (query === MONDAY_CALLBACK_READ_ONLY_QUERIES.native) { const items = sanitizeItems(value.data.items, 1); return items ? { data: { items } } : null; }
+  if (query === MONDAY_CALLBACK_READ_ONLY_QUERIES.native) { const items = sanitizeItems(value.data.items, 1, selectedColumnIds); return items ? { data: { items } } : null; }
   if (!plainRecord(value.data.items_page_by_column_values)) return null;
-  const page = value.data.items_page_by_column_values; const items = sanitizeItems(page.items, MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookupLimit);
+  const page = value.data.items_page_by_column_values; const items = sanitizeItems(page.items, MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookupLimit, selectedColumnIds);
   return items ? { data: { items_page_by_column_values: { items } } } : null;
 }
-function sanitizeItems(items, limit) { if (!Array.isArray(items) || items.length > limit) return null; const sanitized = []; for (const item of items) { if (!plainRecord(item) || typeof item.id !== "string" || !plainRecord(item.board) || typeof item.board.id !== "string" || !Array.isArray(item.column_values) || item.column_values.length > 3) return null; const columns = []; for (const column of item.column_values) { if (!plainRecord(column) || typeof column.id !== "string" || typeof column.type !== "string" || !(typeof column.text === "string" || column.text === null) || (typeof column.text === "string" && column.text.length > 256)) return null; columns.push({ id: column.id, type: column.type, text: column.text ?? "" }); } sanitized.push({ id: item.id, board: { id: item.board.id }, column_values: columns }); } return sanitized; }
-function publicRuntimeConfig(config) { return Object.freeze({ host: config.host, port: config.port, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mode: "audit_only", recordingActionsPermitted: false }); }
+function selectedColumns(variables) { if (!plainRecord(variables) || !Array.isArray(variables.columnIds) || variables.columnIds.length < 1 || variables.columnIds.length > 4 || variables.columnIds.some((id) => typeof id !== "string") || new Set(variables.columnIds).size !== variables.columnIds.length) return null; return new Set(variables.columnIds); }
+function sanitizeItems(items, limit, selectedColumnIds) { if (!Array.isArray(items) || items.length > limit) return null; const sanitized = []; for (const item of items) { if (!plainRecord(item) || typeof item.id !== "string" || !plainRecord(item.board) || typeof item.board.id !== "string" || !Array.isArray(item.column_values) || item.column_values.length > selectedColumnIds.size) return null; const columns = []; for (const column of item.column_values) { if (!plainRecord(column) || typeof column.id !== "string" || !selectedColumnIds.has(column.id) || typeof column.type !== "string" || !(typeof column.text === "string" || column.text === null) || (typeof column.text === "string" && column.text.length > 256)) return null; columns.push({ id: column.id, type: column.type, text: column.text ?? "" }); } sanitized.push({ id: item.id, board: { id: item.board.id }, column_values: columns }); } return sanitized; }
+function publicRuntimeConfig(config) { return Object.freeze({ host: config.host, port: config.port, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, consentColumnId: config.consentColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mode: "audit_only", recordingActionsPermitted: false }); }
 async function closeQuietly(store) { try { await store.close(); } catch { /* no dependency details cross the runtime boundary */ } }
 
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) void main();
