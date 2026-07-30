@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "documentType": "LEGAL_REVIEW_RECORD",
+  "status": "NOT_APPROVED",
+  "recordingActionsPermitted": false,
+  "runtimeEligible": false,
+  "rulesetVersion": null,
+  "jurisdictions": [],
+  "requiredReview": {
+    "legalCounsel": {
+      "name": null,
+      "completedAt": null,
+      "memorandumReference": null
+    },
+    "privacySecurity": {
+      "name": null,
+      "completedAt": null,
+      "assessmentReference": null
+    },
+    "operationalOwner": {
+      "name": null,
+      "completedAt": null,
+      "trainingReference": null
+    },
+    "executiveApprover": {
+      "name": "Dave Donovan",
+      "completedAt": null,
+      "approvalReference": null
+    }
+  },
+  "requiredJurisdictionEvidence": {
+    "businessStateSource": "Callbacks.State: rep-verified controlled dropdown",
+    "humanRecordingConsent": "Callbacks.Recording Consent: exact value Verified — Permit Recording",
+    "legalAuthority": null,
+    "reviewedAt": null,
+    "expiresAt": null
+  }
+}

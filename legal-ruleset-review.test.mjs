@@ -103,9 +103,12 @@ test("rejects unknown keys, symbols, accessors, malformed arrays, and hostile pr
   const { proxy, revoke } = Proxy.revocable(approvedRecord(), {}); revoke(); assert.equal(validate(proxy), null);
 });
 
-test("the template and live runtime remain outside this engineering-only validator", async () => {
-  const template = JSON.parse(await readFile(new URL("./policy/legal-ruleset.review-template.json", import.meta.url), "utf8"));
-  assert.equal(validate(template), null);
+test("both review templates and the live runtime remain outside this engineering-only validator", async () => {
+  const templates = await Promise.all([
+    readFile(new URL("./policy/legal-ruleset.review-template.json", import.meta.url), "utf8"),
+    readFile(new URL("./policy/legal-review-record.template.json", import.meta.url), "utf8"),
+  ]);
+  for (const template of templates) assert.equal(validate(JSON.parse(template)), null);
   const [validatorSource, runtimeSource, receiverSource] = await Promise.all([
     readFile(new URL("./legal-ruleset-review.mjs", import.meta.url), "utf8"),
     readFile(new URL("./audit-only-runtime.mjs", import.meta.url), "utf8"),

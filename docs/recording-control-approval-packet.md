@@ -48,7 +48,8 @@ Unknown, expired, incomplete, conflicting, or unreviewed evidence must be repres
 ## Controlled artifacts
 
 - Baseline runtime policy: [`policy/recording-controller.policy.json`](../policy/recording-controller.policy.json). It must remain `DISABLED`, `AUDIT_ONLY`, `recordingActionsPermitted: false`, and `legalRuleset: null` pending approval.
-- Legal-review input template: [`policy/legal-ruleset.review-template.json`](../policy/legal-ruleset.review-template.json). It is intentionally non-executable, empty, and `NOT_APPROVED`.
+- Legal-review overview template: [`policy/legal-ruleset.review-template.json`](../policy/legal-ruleset.review-template.json). It is intentionally non-executable, empty, and `NOT_APPROVED`.
+- Schema-aligned review-record template: [`policy/legal-review-record.template.json`](../policy/legal-review-record.template.json). It is intentionally incomplete and `NOT_APPROVED`; it is rejected by the structural validator until every required evidence field **and approval gate** is complete.
 - State evidence policy: [`docs/callback-business-state-policy.md`](callback-business-state-policy.md).
 
 Do **not** insert a reviewed ruleset into the live runtime merely by changing JSON. A future implementation must introduce a separate, reviewed promotion path that validates: immutable version, all required approval references, current non-expired review, and an explicit production-change approval.
