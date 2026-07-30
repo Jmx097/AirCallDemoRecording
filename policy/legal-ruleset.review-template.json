@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "documentType": "LEGAL_REVIEW_TEMPLATE_ONLY",
+  "status": "NOT_APPROVED",
+  "recordingActionsPermitted": false,
+  "runtimeEligible": false,
+  "rulesetVersion": null,
+  "jurisdictions": [],
+  "requiredReview": {
+    "legalCounsel": {
+      "name": null,
+      "completedAt": null,
+      "memorandumReference": null
+    },
+    "privacySecurity": {
+      "name": null,
+      "completedAt": null,
+      "assessmentReference": null
+    },
+    "operationalOwner": {
+      "name": null,
+      "completedAt": null,
+      "trainingReference": null
+    },
+    "executiveApprover": {
+      "name": "Dave Donovan",
+      "completedAt": null,
+      "approvalReference": null
+    }
+  },
+  "requiredJurisdictionEvidence": {
+    "businessStateSource": "Callbacks.State: rep-verified controlled dropdown",
+    "humanRecordingConsent": "Callbacks.Recording Consent: exact value Verified — Permit Recording",
+    "legalAuthority": "Per-jurisdiction counsel-reviewed authority and effective-date evidence",
+    "reviewedAt": null,
+    "expiresAt": null
+  },
+  "notes": "Template only. Empty jurisdictions are intentional. Do not import this file into a runtime, infer legal conclusions, or change controllerStatus/recordingActionsPermitted until every required review is completed and a separate explicit production-change approval has been recorded."
+}

@@ -29,7 +29,7 @@ This repository is an **audit-only, fail-closed baseline** for future developmen
 
 `createPostgresConsentDecisionStore` requires `{ databaseUrl }`. The adapter exclusively owns the `pg` pool it creates: direct `client`, `query`, `pool`, facade, and other executor injection are unsupported and rejected. It acquires and releases one client via `pool.connect()` for every migration and finalization transaction. `finalize` keeps `BEGIN`, its fenced claim update, audit/outbox insert, and `COMMIT` (or `ROLLBACK`) on that acquired client; the static migration is sent as separate SQL statements inside its own advisory-lock-protected transaction rather than as a multi-statement query.
 
-The source-of-truth policy for callback business state is documented in [docs/callback-business-state-policy.md](docs/callback-business-state-policy.md). The safe audit-only fixture is [policy/recording-controller.policy.json](policy/recording-controller.policy.json).
+The source-of-truth policy for callback business state is documented in [docs/callback-business-state-policy.md](docs/callback-business-state-policy.md). The safe audit-only fixture is [policy/recording-controller.policy.json](policy/recording-controller.policy.json). Any future move beyond this fixture is governed by the non-executable [recording-control approval packet](docs/recording-control-approval-packet.md) and its empty [legal-review template](policy/legal-ruleset.review-template.json); neither artifact authorizes recording or is loaded by the runtime.
 
 ## Local verification
 
