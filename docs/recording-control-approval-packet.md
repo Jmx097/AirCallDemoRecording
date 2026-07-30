@@ -57,10 +57,11 @@ Do **not** insert a reviewed ruleset into the live runtime merely by changing JS
 
 1. Legal, privacy/security, operations, and Dave complete the review record for a bounded scope.
 2. Engineering designs a ruleset loader that rejects templates, missing approvers, expired reviews, unknown schema versions, and any ruleset lacking a matching explicit approval reference.
-3. Add tests for approved, expired, revoked, malformed, cross-jurisdiction, blank consent, denied consent, and multiple-match cases. Retain audit-only behavior.
-4. Conduct synthetic live audit acceptance using temporary fictitious Callback records; verify only redacted outcome/reason fields and delete the records.
-5. Dave gives a separate decision on whether to begin a recording-control design review. This is not a request to enable control.
-6. Before any live provider action: complete provider-control review, webhook/inbound authenticity review, rollback/kill-switch validation, monitoring/on-call ownership, and a separate go/no-go approval.
+3. Engineering may use the pure `legal-ruleset-review.mjs` helper only to reject malformed records before any future loader is designed. It validates schema structure and dates, **not** counsel identity, legal correctness, source integrity, or authorization; it is not imported by the audit runtime.
+4. Add tests for approved, expired, revoked, malformed, cross-jurisdiction, blank consent, denied consent, and multiple-match cases. Retain audit-only behavior.
+5. Conduct synthetic live audit acceptance using temporary fictitious Callback records; verify only redacted outcome/reason fields and delete the records.
+6. Dave gives a separate decision on whether to begin a recording-control design review. This is not a request to enable control.
+7. Before any live provider action: complete provider-control review, webhook/inbound authenticity review, rollback/kill-switch validation, monitoring/on-call ownership, and a separate go/no-go approval.
 
 ## Decision record
 
