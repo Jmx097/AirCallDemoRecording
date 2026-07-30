@@ -26,7 +26,7 @@ function config(overrides = {}) {
   const fake = fakeStore(); let queries = 0;
   return { fake, get queries() { return queries; }, value: {
     expectedWebhookToken: TOKEN, canonicalBoardId: "board-1", stateColumnId: "state", phoneColumnIds: ["phone"], stateSource: "rep_verified_controlled_state_dropdown",
-    mondayQuery(request) { queries++; assert.match(request.query, /ReadCanonicalBoardPage/); return { data: { boards: [{ id: "board-1", items_page: { cursor: null, items: [item()] } }] } }; },
+    mondayQuery(request) { queries++; assert.match(request.query, /ReadCanonicalPhoneMatches/); return { data: { items_page_by_column_values: { items: [item()] } } }; },
     store: fake.store, ruleset: baseRules, approvedRulesetVersions: new Set(["receiver-v1"]), ...overrides,
   } };
 }
@@ -128,7 +128,7 @@ test("close denies new work while draining an in-flight audit request", async ()
   // close() immediately stops accepting new connections while allowing the
   // already-accepted request to drain.
   const refused = await fetch(run.url + "/health").then(() => false, () => true); assert.equal(refused, true);
-  release({ data: { boards: [{ id: "board-1", items_page: { cursor: null, items: [item()] } }] } });
+  release({ data: { items_page_by_column_values: { items: [item()] } } });
   assert.equal((await inFlight).response.status, 202); assert.equal(await closing, true);
 });
 
@@ -142,7 +142,7 @@ test("bounded in-flight audit work returns 429 without processing excess request
   const excess = await post(run.url, JSON.stringify({ token: TOKEN, event: "call.answered", data: { id: "call-excess", raw_digits: PHONE } }));
   assert.equal(excess.response.status, 429);
   assert.deepEqual(excess.body, { accepted: false, error: "too_many_requests" });
-  release({ data: { boards: [{ id: "board-1", items_page: { cursor: null, items: [item()] } }] } });
+  release({ data: { items_page_by_column_values: { items: [item()] } } });
   assert.equal((await first).response.status, 202);
   await run.receiver.close();
 });

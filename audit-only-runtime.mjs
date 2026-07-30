@@ -18,7 +18,7 @@ const AUDIT_RULESET = Object.freeze({
   states: Object.freeze({ AL: false, AK: false, AZ: false, AR: false, CA: false, CO: false, CT: false, DE: false, FL: false, GA: false, HI: false, ID: false, IL: false, IN: false, IA: false, KS: false, KY: false, LA: false, ME: false, MD: false, MA: false, MI: false, MN: false, MS: false, MO: false, MT: false, NE: false, NV: false, NH: false, NJ: false, NM: false, NY: false, NC: false, ND: false, OH: false, OK: false, OR: false, PA: false, RI: false, SC: false, SD: false, TN: false, TX: false, UT: false, VT: false, VA: false, WA: false, WV: false, WI: false, WY: false }),
 });
 const APPROVED_AUDIT_RULESET_VERSIONS = new Set([AUDIT_RULESET.version]);
-const ALLOWED_QUERY_TEXT = new Set([MONDAY_CALLBACK_READ_ONLY_QUERIES.native, MONDAY_CALLBACK_READ_ONLY_QUERIES.boardPage]);
+const ALLOWED_QUERY_TEXT = new Set([MONDAY_CALLBACK_READ_ONLY_QUERIES.native, MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookup]);
 const ENVIRONMENT_KEYS = Object.freeze(["AIRCALL_AUDIT_WEBHOOK_TOKEN", "AIRCALL_AUDIT_DATABASE_URL", "MONDAY_API_TOKEN", "AIRCALL_AUDIT_PORT", "AIRCALL_AUDIT_HOST"]);
 
 /** Builds fixed audit-only configuration from a safe data-only environment snapshot; never reads .env files. */
@@ -179,11 +179,9 @@ function toBytes(value) { if (value instanceof Uint8Array) return value; if (val
 function sanitizeMondayResponse(query, value) {
   if (!plainRecord(value) || !plainRecord(value.data)) return null;
   if (query === MONDAY_CALLBACK_READ_ONLY_QUERIES.native) { const items = sanitizeItems(value.data.items, 1); return items ? { data: { items } } : null; }
-  const boards = value.data.boards;
-  if (!Array.isArray(boards) || boards.length !== 1 || !plainRecord(boards[0]) || typeof boards[0].id !== "string" || !plainRecord(boards[0].items_page)) return null;
-  const page = boards[0].items_page; const items = sanitizeItems(page.items, 500);
-  if (!items || !(page.cursor === null || typeof page.cursor === "string" && page.cursor.length <= 2048)) return null;
-  return { data: { boards: [{ id: boards[0].id, items_page: { cursor: page.cursor, items } }] } };
+  if (!plainRecord(value.data.items_page_by_column_values)) return null;
+  const page = value.data.items_page_by_column_values; const items = sanitizeItems(page.items, MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookupLimit);
+  return items ? { data: { items_page_by_column_values: { items } } } : null;
 }
 function sanitizeItems(items, limit) { if (!Array.isArray(items) || items.length > limit) return null; const sanitized = []; for (const item of items) { if (!plainRecord(item) || typeof item.id !== "string" || !plainRecord(item.board) || typeof item.board.id !== "string" || !Array.isArray(item.column_values) || item.column_values.length > 3) return null; const columns = []; for (const column of item.column_values) { if (!plainRecord(column) || typeof column.id !== "string" || typeof column.type !== "string" || !(typeof column.text === "string" || column.text === null) || (typeof column.text === "string" && column.text.length > 256)) return null; columns.push({ id: column.id, type: column.type, text: column.text ?? "" }); } sanitized.push({ id: item.id, board: { id: item.board.id }, column_values: columns }); } return sanitized; }
 function publicRuntimeConfig(config) { return Object.freeze({ host: config.host, port: config.port, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mode: "audit_only", recordingActionsPermitted: false }); }

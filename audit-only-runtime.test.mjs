@@ -41,10 +41,10 @@ test("Monday transport accepts only fixed query documents and returns bounded re
   assert.deepEqual(result, { data: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "TX" }] }] } });
   assert.equal(calls.length, 1); assert.equal(calls[0][0], "https://api.monday.com/v2"); assert.equal(calls[0][1].method, "POST"); assert.match(calls[0][1].body, /^\{"query":"query /);
   await assert.rejects(query({ query: "mutation Evil { x }", variables: {} }), /monday_query_rejected/);
-  const blankStatePage = JSON.stringify({ data: { boards: [{ id: "9062504443", items_page: { cursor: null, items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: null }] }] } }] } });
+  const blankStatePage = JSON.stringify({ data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: null }] }] } } });
   const blankStateQuery = createReadOnlyMondayQuery({ mondayToken: env.MONDAY_API_TOKEN, fetchImpl: async () => response(blankStatePage) });
-  const blankStateResult = await blankStateQuery({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.boardPage, variables: { boardId: "9062504443", cursor: null, columnIds: ["dropdown_mm5ht9fz"] } });
-  assert.deepEqual(blankStateResult, { data: { boards: [{ id: "9062504443", items_page: { cursor: null, items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "" }] }] } }] } });
+  const blankStateResult = await blankStateQuery({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookup, variables: { boardId: "9062504443", phoneColumnId: "phone_mkqkk6nv", phoneDigits: "15551234567", columnIds: ["dropdown_mm5ht9fz"] } });
+  assert.deepEqual(blankStateResult, { data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "" }] }] } } });
 });
 
 test("Monday response cap is byte-based for absent length chunked and non-ASCII bodies", async () => {

@@ -12,7 +12,7 @@ const PHONE = "15551234567";
 function item(id, columns, boardId = BOARD) { return { id, board: { id: boardId }, column_values: columns }; }
 function state(value = "TX", type = "status") { return { id: STATE, text: value, type }; }
 function phone(id, text, type = "phone") { return { id, text, type }; }
-function page(items, cursor = null, boardId = BOARD) { return { data: { boards: [{ id: boardId, items_page: { items, cursor } }] } }; }
+function phonePage(items) { return { data: { items_page_by_column_values: { items } } }; }
 function adapter(query, overrides = {}) {
   return createMondayCallbackAdapter({ canonicalBoardId: BOARD, stateColumnId: STATE, phoneColumnIds: PHONES, stateSource: SOURCE, query, ...overrides });
 }
@@ -55,20 +55,22 @@ test("phone lookup requires exact normalized evidence, not last-ten/country infe
   const calls = [];
   const result = await adapter(async (request) => {
     calls.push(request);
-    return page([item("phone-1", [state("NY", "dropdown"), phone("phone_alt", "+1 (555) 123-4567")])]);
+    return phonePage([item("phone-1", [state("NY", "dropdown"), phone("phone_alt", "+1 (555) 123-4567")])]);
   }).findConsentLeadsByPhone(PHONE);
   assert.deepEqual(JSON.parse(result), [{ id: "phone-1", boardId: BOARD, state: { value: "NY", source: SOURCE, verified: true }, phones: [PHONE], phoneDigits: PHONE }]);
-  assert.deepEqual(calls[0].variables, { boardId: BOARD, cursor: null, columnIds: [STATE, ...PHONES] });
-  assert.match(calls[0].query, /limit: 500/);
+  assert.deepEqual(calls[0].variables, { boardId: BOARD, phoneColumnId: "phone_main", phoneDigits: PHONE, columnIds: [STATE, ...PHONES] });
+  assert.match(calls[0].query, /items_page_by_column_values\(board_id: \$boardId, columns: .*limit: 2\)/);
+  assert.doesNotMatch(calls[0].query, /boards\s*\(/);
+  assert.doesNotMatch(calls[0].query, /items_page\(limit: 500|cursor/);
   assert.doesNotMatch(calls[0].query, /mutation/i);
   assert.equal(await adapter(async () => { throw new Error("must not query"); }).findConsentLeadsByPhone("555-123-4567"), "[]");
 
-  const collision = adapter(async () => page([item("collision", [state(), phone("phone_main", "995551234567")])]));
+  const collision = adapter(async () => phonePage([item("collision", [state(), phone("phone_main", "995551234567")])]));
   assert.equal(await collision.findConsentLeadsByPhone(PHONE), "[]");
   assert.deepEqual(await resolveCanonicalConsent({ canonicalBoardId: BOARD, stateSource: SOURCE, phoneDigits: PHONE, ...collision }),
     { item: null, method: "unique_phone", reason: "phone_not_found" });
   for (const exactPhone of ["5551234567", PHONE, "4415551234567", "991555123456789"]) {
-    const exact = adapter(async () => page([item(`id-${exactPhone.length}`, [state(), phone("phone_main", `+${exactPhone}`)])]));
+    const exact = adapter(async () => phonePage([item(`id-${exactPhone.length}`, [state(), phone("phone_main", `+${exactPhone}`)])]));
     const payload = JSON.parse(await exact.findConsentLeadsByPhone(exactPhone));
     assert.equal(payload.length, 1);
     assert.equal(payload[0].phoneDigits, exactPhone);
@@ -79,43 +81,42 @@ test("wrong phone type and parser-bound violations fail closed", async () => {
   const tooManyColumns = item("many", [state(), phone("phone_main", PHONE), phone("phone_alt", PHONE), phone("extra", PHONE)]);
   const longText = item("long", [state(), phone("phone_main", "1".repeat(257))]);
   const wrongType = item("text-phone", [state(), phone("phone_main", PHONE, "text")]);
-  const overPage = Array.from({ length: 501 }, (_, index) => item(`bound-${index}`, [state(), phone("phone_main", PHONE)]));
-  for (const response of [page(overPage), page([tooManyColumns]), page([longText]), page([wrongType])]) {
+  const overPage = Array.from({ length: 3 }, (_, index) => item(`bound-${index}`, [state(), phone("phone_main", PHONE)]));
+  for (const response of [phonePage(overPage), phonePage([tooManyColumns]), phonePage([longText]), phonePage([wrongType])]) {
     assert.equal(await adapter(async () => response).findConsentLeadsByPhone(PHONE), "[]");
   }
-  const allowedText = adapter(async () => page([item("text-ok", [state(), phone("phone_main", PHONE, "text")])]), { allowedPhoneColumnTypes: ["text"] });
+  const allowedText = adapter(async () => phonePage([item("text-ok", [state(), phone("phone_main", PHONE, "text")])]), { allowedPhoneColumnTypes: ["text"] });
   assert.equal(JSON.parse(await allowedText.findConsentLeadsByPhone(PHONE))[0].phoneDigits, PHONE);
 });
 
-test("two unique phone candidates stop the crawl and resolver fails closed as nonunique", async () => {
+test("two unique phone candidates stop direct lookup and resolver fails closed as nonunique", async () => {
   const calls = [];
   const dependency = adapter(async ({ variables }) => {
-    calls.push(variables.cursor);
-    return page([
+    calls.push(variables.phoneColumnId);
+    return phonePage([
       item("one", [state(), phone("phone_main", PHONE)]), item("two", [state(), phone("phone_main", PHONE)]),
-      item("three", [state(), phone("phone_main", PHONE)]),
-    ], "must-not-fetch");
+    ]);
   });
   const payload = await dependency.findConsentLeadsByPhone(PHONE);
   assert.equal(JSON.parse(payload).length, 2);
-  assert.deepEqual(calls, [null]);
+  assert.deepEqual(calls, ["phone_main"]);
   assert.deepEqual(await resolveCanonicalConsent({ canonicalBoardId: BOARD, stateSource: SOURCE, phoneDigits: PHONE, ...dependency }),
     { item: null, method: "unique_phone", reason: "phone_not_unique" });
 });
 
-test("phone crawl paginates and fails closed on bad board, repeated cursor, or page limit", async () => {
-  const cursors = [];
-  const paged = adapter(async ({ variables }) => {
-    cursors.push(variables.cursor);
-    return variables.cursor === null ? page([], "next") : page([item("found", [state(), phone("phone_main", PHONE)])]);
+test("phone lookup queries each configured column directly and fails closed on invalid responses", async () => {
+  const queriedColumns = [];
+  const direct = adapter(async ({ variables }) => {
+    queriedColumns.push(variables.phoneColumnId);
+    return variables.phoneColumnId === "phone_main" ? phonePage([]) : phonePage([item("found", [state(), phone("phone_alt", PHONE)])]);
   });
-  assert.equal(JSON.parse(await paged.findConsentLeadsByPhone(PHONE)).length, 1);
-  assert.deepEqual(cursors, [null, "next"]);
-  assert.equal(await adapter(async () => page([], null, "other")).findConsentLeadsByPhone(PHONE), "[]");
-  assert.equal(await adapter(async () => page([], "again")).findConsentLeadsByPhone(PHONE), "[]");
-  let count = 0;
-  assert.equal(await adapter(async () => { count += 1; return page([], `c${count}`); }).findConsentLeadsByPhone(PHONE), "[]");
-  assert.equal(count, 20);
+  assert.equal(JSON.parse(await direct.findConsentLeadsByPhone(PHONE)).length, 1);
+  assert.deepEqual(queriedColumns, PHONES);
+  assert.equal(await adapter(async () => phonePage([item("foreign-board", [state(), phone("phone_main", PHONE)], "other")])).findConsentLeadsByPhone(PHONE), "[]");
+  assert.equal(await adapter(async () => phonePage([item("one", [state(), phone("phone_main", PHONE)]), item("two", [state(), phone("phone_main", PHONE)]), item("three", [state(), phone("phone_main", PHONE)])])).findConsentLeadsByPhone(PHONE), "[]");
+  // A result from another configured column cannot satisfy this column's direct query.
+  assert.equal(await adapter(async ({ variables }) => variables.phoneColumnId === "phone_main"
+    ? phonePage([item("wrong-column", [state(), phone("phone_alt", PHONE)])]) : phonePage([])).findConsentLeadsByPhone(PHONE), "[]");
 });
 
 test("query failures, hostile getters, proxies, and thenables remain redacted and nonthrowing", async () => {

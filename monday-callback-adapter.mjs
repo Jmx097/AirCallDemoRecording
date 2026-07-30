@@ -2,9 +2,8 @@ const OPAQUE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const TYPE_NAME = /^[A-Za-z][A-Za-z0-9_-]{0,31}$/;
 const PHONE_INPUT = /^\d{10,15}$/;
 const MAX_PHONE_COLUMNS = 16;
-const MAX_PAGES = 20;
 const PAGE_SIZE = 500;
-const MAX_CURSOR_LENGTH = 2048;
+const PHONE_LOOKUP_LIMIT = 2;
 const NATIVE_QUERY = `query ReadCanonicalItem($itemId: ID!, $columnIds: [String!]) {
   items(ids: [$itemId]) {
     id
@@ -12,16 +11,12 @@ const NATIVE_QUERY = `query ReadCanonicalItem($itemId: ID!, $columnIds: [String!
     column_values(ids: $columnIds) { id text type }
   }
 }`;
-const BOARD_PAGE_QUERY = `query ReadCanonicalBoardPage($boardId: [ID!], $cursor: String, $columnIds: [String!]) {
-  boards(ids: $boardId) {
-    id
-    items_page(limit: 500, cursor: $cursor) {
-      cursor
-      items {
-        id
-        board { id }
-        column_values(ids: $columnIds) { id text type }
-      }
+const PHONE_LOOKUP_QUERY = `query ReadCanonicalPhoneMatches($boardId: ID!, $phoneColumnId: String!, $phoneDigits: String!, $columnIds: [String!]) {
+  items_page_by_column_values(board_id: $boardId, columns: [{ column_id: $phoneColumnId, column_values: [$phoneDigits] }], limit: 2) {
+    items {
+      id
+      board { id }
+      column_values(ids: $columnIds) { id text type }
     }
   }
 }`;
@@ -58,25 +53,26 @@ export function createMondayCallbackAdapter(config) {
       if (typeof phoneDigits !== "string" || !PHONE_INPUT.test(phoneDigits)) return "[]";
       const matches = [];
       const matchedIds = new Set();
-      const cursors = new Set();
-      let cursor = null;
 
-      for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
+      // Monday filters each configured phone column directly. Each request is capped at
+      // two items, and there is deliberately no cursor/full-board fallback.
+      for (const phoneColumnId of phoneColumnIds) {
         let response;
         try {
-          const received = queryResult(query, { query: BOARD_PAGE_QUERY, variables: { boardId: canonicalBoardId, cursor, columnIds: [...columnIds] } });
+          const received = queryResult(query, { query: PHONE_LOOKUP_QUERY, variables: { boardId: canonicalBoardId, phoneColumnId, phoneDigits, columnIds: [...columnIds] } });
           response = received.promise ? await received.value : received.value;
         } catch {
           throw new Error("monday_read_failed");
         }
         try {
-          const board = oneBoard(response, canonicalBoardId);
-          const itemPage = board && ownObject(board, "items_page");
+          const itemPage = ownObject(ownObject(response, "data"), "items_page_by_column_values");
           const items = itemPage && ownArray(itemPage, "items");
-          if (!board || !itemPage || !boundedItems(items, columnIds.length)) return "[]";
+          if (!itemPage || !boundedItems(items, columnIds.length, PHONE_LOOKUP_LIMIT)) return "[]";
           for (const rawItem of items) {
             const canonical = canonicalObject(rawItem, canonicalBoardId, stateColumnId, phoneColumnIds, allowedPhoneColumnTypes, stateSource);
-            const matchedPhone = canonical && matchingPhone(rawItem, phoneColumnIds, allowedPhoneColumnTypes, phoneDigits);
+            // Bind response evidence to both the exact requested digits and the column
+            // that Monday was asked to search; never trust filtering alone.
+            const matchedPhone = canonical && matchingPhone(rawItem, [phoneColumnId], allowedPhoneColumnTypes, phoneDigits);
             if (canonical && matchedPhone && !matchedIds.has(canonical.id)) {
               matchedIds.add(canonical.id);
               // Preserve the phone evidence returned by Monday; never substitute request input.
@@ -85,16 +81,11 @@ export function createMondayCallbackAdapter(config) {
               if (matches.length === 2) return JSON.stringify(matches);
             }
           }
-          const nextCursor = ownValue(itemPage, "cursor");
-          if (nextCursor === null || nextCursor === undefined || nextCursor === "") return JSON.stringify(matches);
-          if (typeof nextCursor !== "string" || nextCursor.length > MAX_CURSOR_LENGTH || cursors.has(nextCursor)) return "[]";
-          cursors.add(nextCursor);
-          cursor = nextCursor;
         } catch {
           return "[]";
         }
       }
-      return "[]";
+      return JSON.stringify(matches);
     },
   });
 }
@@ -160,15 +151,8 @@ function matchingPhone(rawItem, phoneColumnIds, allowedPhoneColumnTypes, expecte
   return null;
 }
 
-function oneBoard(response, expectedBoardId) {
-  const boards = arrayAt(response, ["data", "boards"]);
-  if (!plainArray(boards) || boards.length !== 1) return null;
-  const board = boards[0];
-  return plainObject(board) && ownValue(board, "id") === expectedBoardId ? board : null;
-}
-
-function boundedItems(items, columnLimit) {
-  return plainArray(items) && items.length <= PAGE_SIZE && items.every((item) => boundedItem(item, columnLimit));
+function boundedItems(items, columnLimit, itemLimit = PAGE_SIZE) {
+  return plainArray(items) && items.length <= itemLimit && items.every((item) => boundedItem(item, columnLimit));
 }
 function boundedItem(item, columnLimit) {
   const board = ownObject(item, "board");
@@ -197,4 +181,4 @@ function plainArray(value) { return Array.isArray(value) && Object.getPrototypeO
 function opaque(value) { return typeof value === "string" && OPAQUE_IDENTIFIER.test(value) ? value : null; }
 function typeName(value) { return typeof value === "string" && TYPE_NAME.test(value) ? value.toLowerCase() : null; }
 
-export const MONDAY_CALLBACK_READ_ONLY_QUERIES = Object.freeze({ native: NATIVE_QUERY, boardPage: BOARD_PAGE_QUERY, pageSize: PAGE_SIZE });
+export const MONDAY_CALLBACK_READ_ONLY_QUERIES = Object.freeze({ native: NATIVE_QUERY, phoneLookup: PHONE_LOOKUP_QUERY, pageSize: PAGE_SIZE, phoneLookupLimit: PHONE_LOOKUP_LIMIT });
