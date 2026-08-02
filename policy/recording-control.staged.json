@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "mode": "DISABLED",
+  "controlEnabled": false,
+  "approvedPolicyVersion": "timberline-recording-control-2026-08-02.2",
+  "eligibleStates": ["TX"],
+  "requiredConsentLabels": [
+    "Verified — Permit Recording",
+    "Verified — Do Not Record"
+  ],
+  "consentSingleSelectRequired": true,
+  "canonicalBoardId": "7727339040",
+  "canonicalStateColumnId": "text_2",
+  "canonicalPhoneColumnIds": [
+    "phone__1",
+    "dup__of_phone7__1",
+    "phone_mkrgdn4"
+  ],
+  "canonicalConsentColumnId": "dropdown_mm5v99w5",
+  "pilotUserIds": [],
+  "pilotNumberIds": [],
+  "notes": "Staged data-only configuration. The verified consent column exists, but empty pilot scope and disabled control prevent activation."
+}

@@ -32,13 +32,16 @@ export function createAircallRecordingClient({ apiId, apiKey, fetch } = {}) {
   const authorization = `Basic ${Buffer.from(`${apiId}:${apiKey}`, "utf8").toString("base64")}`;
 
   return Object.freeze({
-    async resumeRecording(callId) {
+    async resumeRecording(callId, { signal } = {}) {
       const encodedCallId = encodeCallId(callId);
+      if (signal !== undefined && !(signal instanceof AbortSignal)) throw new TypeError("signal must be an AbortSignal");
       let response;
       try {
         response = await fetch(`${AIRCALL_API_ORIGIN}/v1/calls/${encodedCallId}/resume_recording`, {
           method: "POST",
           headers: { Authorization: authorization },
+          redirect: "error",
+          signal,
         });
       } catch {
         throw new AircallRecordingClientError("aircall_network_failure", "network_error", true);
