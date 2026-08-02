@@ -97,6 +97,7 @@ test("schema readiness verifies fixed board, exact column types, required dropdo
     assert.equal(request.query, SALES_CONTROL_SCHEMA_QUERY); return { data: { boards: [{ id: "7727339040", columns: edit(structuredClone(columns)) }] } };
   } });
   assert.equal(await make().checkSchema(), true);
+  assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: ["Verified — Permit Recording", "Verified — Do Not Record"], allow_multiple_selection: false }); return value; }).checkSchema(), true);
   assert.equal(await make((value) => { value[4].type = "status"; return value; }).checkSchema(), false);
   assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ name: "Verified — Permit Recording" }, { name: "Verified — Do Not Record" }], allow_multiple_selection: true }); return value; }).checkSchema(), false);
   assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ name: "Verified — Permit Recording" }], allow_multiple_selection: false }); return value; }).checkSchema(), false);
