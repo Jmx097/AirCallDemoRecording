@@ -29,8 +29,8 @@
     }
   },
   "requiredJurisdictionEvidence": {
-    "businessStateSource": "Callbacks.State: rep-verified controlled dropdown",
-    "humanRecordingConsent": "Callbacks.Recording Consent: exact value Verified — Permit Recording",
+    "businessStateSource": "Sales Board 7727339040.State text_2: business-address State",
+    "humanRecordingConsent": "Separate approved human-consent control: not configured in audit runtime",
     "legalAuthority": null,
     "reviewedAt": null,
     "expiresAt": null

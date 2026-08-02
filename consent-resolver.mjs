@@ -33,6 +33,10 @@ export async function resolveCanonicalConsent(input = {}) {
   const stateSource = opaqueIdentifier(config.stateSource);
   if (!stateSource) return noRecord("none", "invalid_state_source");
 
+  const suppliedPhone = normalizedPhone(config.phoneDigits);
+  if (!suppliedPhone) return noRecord("unique_phone", isMissingPhone(config.phoneDigits) ? "missing_phone" : "invalid_phone");
+
+  let nativeResult = null;
   const nativeInput = nativeIdentifier(config.nativeItemId);
   if (nativeInput === MISSING) return noRecord("native_item_id", "invalid_native_item_id");
   if (nativeInput) {
@@ -45,11 +49,12 @@ export async function resolveCanonicalConsent(input = {}) {
     }
     const native = parseNativePayload(payload);
     if (!native) return noRecord("native_item_id", "invalid_native_lookup_result");
-    if (native.item) return validateItem(native.item, canonicalBoard, stateSource, "native_item_id", { expectedId: nativeInput });
+    if (native.item) {
+      nativeResult = validateItem(native.item, canonicalBoard, stateSource, "native_item_id", { expectedId: nativeInput, expectedPhone: suppliedPhone });
+      if (!nativeResult.item) return nativeResult;
+    }
   }
 
-  const suppliedPhone = normalizedPhone(config.phoneDigits);
-  if (!suppliedPhone) return noRecord("unique_phone", isMissingPhone(config.phoneDigits) ? "missing_phone" : "invalid_phone");
   if (typeof config.findConsentLeadsByPhone !== "function") return noRecord("unique_phone", "phone_lookup_unavailable");
 
   let payload;
@@ -63,7 +68,10 @@ export async function resolveCanonicalConsent(input = {}) {
   if (phoneItems.length === 0) return noRecord("unique_phone", "phone_not_found");
   if (phoneItems.length !== 1) return noRecord("unique_phone", "phone_not_unique");
 
-  return validateItem(phoneItems[0], canonicalBoard, stateSource, "unique_phone", { expectedPhone: suppliedPhone });
+  const phoneResult = validateItem(phoneItems[0], canonicalBoard, stateSource, "unique_phone", { expectedPhone: suppliedPhone });
+  if (!phoneResult.item) return phoneResult;
+  if (nativeResult && phoneResult.item.id !== nativeResult.item.id) return noRecord("native_item_id", "native_phone_association_mismatch");
+  return nativeResult || phoneResult;
 }
 
 function parseNativePayload(payload) {

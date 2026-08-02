@@ -12,7 +12,7 @@ function responseFromChunks(chunks, { ok = true, length } = {}) {
   return { ok, headers: { get: (name) => name === "content-length" ? (length === undefined ? null : String(length)) : null }, body: stream };
 }
 function response(body, options = {}) { return responseFromChunks([body], { ...options, length: options.length ?? Buffer.byteLength(body) }); }
-function nativeBody() { return JSON.stringify({ data: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "TX" }, { id: "dropdown_mm5rm7vc", type: "dropdown", text: "Verified — Permit Recording" }] }] }, extensions: { secret: "must not escape" } }); }
+function nativeBody() { return JSON.stringify({ data: { items: [{ id: "1", board: { id: "7727339040" }, column_values: [{ id: "text_2", type: "text", text: "TX" }, { id: "phone__1", type: "phone", text: "+1 555 123 4567" }] }] }, extensions: { secret: "must not escape" } }); }
 async function withProcessEnvironment(values, work) {
   const saved = Object.fromEntries(Object.keys(values).map((key) => [key, Object.getOwnPropertyDescriptor(process.env, key)]));
   try { for (const [key, value] of Object.entries(values)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } return await work(); }
@@ -21,8 +21,8 @@ async function withProcessEnvironment(values, work) {
 
 test("runtime config requires safe required env, fixes mapping and loopback", () => {
   const config = readAuditOnlyRuntimeConfig(env);
-  assert.equal(config.host, "127.0.0.1"); assert.equal(config.port, 8080); assert.equal(config.canonicalBoardId, "9062504443");
-  assert.equal(config.consentColumnId, "dropdown_mm5rm7vc"); assert.deepEqual(config.phoneColumnIds, ["phone_mkqkk6nv", "phone_mkqk71tf"]); assert.equal(config.ruleset.version, "audit-only-disabled-v1"); assert.equal(config.ruleset.states.TX, false);
+  assert.equal(config.host, "127.0.0.1"); assert.equal(config.port, 8080); assert.equal(config.canonicalBoardId, "7727339040");
+  assert.equal(config.stateColumnId, "text_2"); assert.deepEqual(config.phoneColumnIds, ["phone__1", "dup__of_phone7__1", "phone_mkrgdn4"]); assert.equal(config.stateSource, "sales_board_business_state"); assert.equal(config.ruleset.version, "timberline-audit-classification-2026-08-02.1"); assert.equal(config.ruleset.states.TX, true); assert.equal("consentColumnId" in config, false);
   for (const altered of [{}, { ...env, AIRCALL_AUDIT_WEBHOOK_TOKEN: "short" }, { ...env, AIRCALL_AUDIT_DATABASE_URL: "https://not-postgres.example" }, { ...env, AIRCALL_AUDIT_PORT: "0" }, { ...env, AIRCALL_AUDIT_HOST: "0.0.0.0" }]) assert.throws(() => readAuditOnlyRuntimeConfig(altered));
   assert.equal(readAuditOnlyRuntimeConfig({ ...env, AIRCALL_AUDIT_HOST: "127.0.0.1", AIRCALL_AUDIT_PORT: "3210" }).port, 3210);
   assert.throws(() => readAuditOnlyRuntimeConfig(Object.defineProperty({}, "AIRCALL_AUDIT_WEBHOOK_TOKEN", { get() { throw new Error("must not run"); } })), /invalid_audit_runtime_environment/);
@@ -37,14 +37,14 @@ test("default Node process.env is snapshotted safely without dotenv or prototype
 
 test("Monday transport accepts only fixed query documents and returns bounded redacted shapes", async () => {
   const calls = []; const query = createReadOnlyMondayQuery({ mondayToken: env.MONDAY_API_TOKEN, fetchImpl: async (...args) => { calls.push(args); return response(nativeBody()); } });
-  const result = await query({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.native, variables: { itemId: "1", columnIds: ["dropdown_mm5ht9fz", "dropdown_mm5rm7vc"] } });
-  assert.deepEqual(result, { data: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "TX" }, { id: "dropdown_mm5rm7vc", type: "dropdown", text: "Verified — Permit Recording" }] }] } });
+  const result = await query({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.native, variables: { itemId: "1", columnIds: ["text_2", "phone__1"] } });
+  assert.deepEqual(result, { data: { items: [{ id: "1", board: { id: "7727339040" }, column_values: [{ id: "text_2", type: "text", text: "TX" }, { id: "phone__1", type: "phone", text: "+1 555 123 4567" }] }] } });
   assert.equal(calls.length, 1); assert.equal(calls[0][0], "https://api.monday.com/v2"); assert.equal(calls[0][1].method, "POST"); assert.match(calls[0][1].body, /^\{"query":"query /);
   await assert.rejects(query({ query: "mutation Evil { x }", variables: {} }), /monday_query_rejected/);
-  const blankStatePage = JSON.stringify({ data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: null }] }] } } });
+  const blankStatePage = JSON.stringify({ data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "7727339040" }, column_values: [{ id: "text_2", type: "text", text: null }] }] } } });
   const blankStateQuery = createReadOnlyMondayQuery({ mondayToken: env.MONDAY_API_TOKEN, fetchImpl: async () => response(blankStatePage) });
-  const blankStateResult = await blankStateQuery({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookup, variables: { boardId: "9062504443", phoneColumnId: "phone_mkqkk6nv", phoneDigits: "15551234567", columnIds: ["dropdown_mm5ht9fz"] } });
-  assert.deepEqual(blankStateResult, { data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "9062504443" }, column_values: [{ id: "dropdown_mm5ht9fz", type: "dropdown", text: "" }] }] } } });
+  const blankStateResult = await blankStateQuery({ query: MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookup, variables: { boardId: "7727339040", phoneColumnId: "phone__1", phoneDigits: "15551234567", columnIds: ["text_2"] } });
+  assert.deepEqual(blankStateResult, { data: { items_page_by_column_values: { items: [{ id: "1", board: { id: "7727339040" }, column_values: [{ id: "text_2", type: "text", text: "" }] }] } } });
 });
 
 test("Monday response cap is byte-based for absent length chunked and non-ASCII bodies", async () => {
@@ -62,7 +62,7 @@ test("runtime composition is unstarted, redacts public config, and passes only f
   const receiver = { start: async () => {}, close: async () => { calls.push("receiver.close"); } };
   const runtime = createAuditOnlyRuntime({ env, createStore: (config) => { calls.push(config); return store; }, createReceiver: (config) => { calls.push(config); return receiver; }, fetchImpl: async () => response(nativeBody()) });
   assert.equal(runtime.receiver, receiver); assert.equal(calls.filter((x) => x === "receiver.close").length, 0);
-  assert.deepEqual(runtime.config, { host: "127.0.0.1", port: 8080, canonicalBoardId: "9062504443", stateColumnId: "dropdown_mm5ht9fz", consentColumnId: "dropdown_mm5rm7vc", phoneColumnIds: ["phone_mkqkk6nv", "phone_mkqk71tf"], stateSource: "rep_verified_controlled_state_dropdown", mode: "audit_only", recordingActionsPermitted: false });
+  assert.deepEqual(runtime.config, { host: "127.0.0.1", port: 8080, canonicalBoardId: "7727339040", stateColumnId: "text_2", phoneColumnIds: ["phone__1", "dup__of_phone7__1", "phone_mkrgdn4"], stateSource: "sales_board_business_state", mode: "audit_only", recordingActionsPermitted: false });
   const receiverConfig = calls.find((x) => x && x.host); assert.equal(receiverConfig.host, "127.0.0.1"); assert.equal(receiverConfig.port, 8080); assert.equal("databaseUrl" in receiverConfig, false); assert.equal("mondayToken" in receiverConfig, false); assert.equal("ready" in receiverConfig.store, false); assert.equal(typeof receiverConfig.store.initialize, "function");
   await receiverConfig.store.initialize(); await receiverConfig.store.claim(); await receiverConfig.store.finalize(); await receiverConfig.store.release();
 });

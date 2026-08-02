@@ -3,7 +3,7 @@ import test from "node:test";
 import { createConsentDecisionService } from "./consent-decision-service.mjs";
 
 const BOARD = "canonical-board";
-const SOURCE = "rep_verified_controlled_state_dropdown";
+const SOURCE = "sales_board_business_state";
 const PHONE = "15551234567";
 const EVENT_KEY = "event-opaque-1";
 const CALL_ID = "call-opaque-1";
@@ -26,7 +26,7 @@ function fakeStore(overrides = {}) {
 function service({ store, getConsentLeadById, findConsentLeadsByPhone } = {}) {
   return createConsentDecisionService({ store, canonicalBoardId: BOARD, stateSource: SOURCE, ruleset, approvedRulesetVersions,
     getConsentLeadById: getConsentLeadById || (async (id) => json(lead({ id }))),
-    findConsentLeadsByPhone: findConsentLeadsByPhone || (async () => json([lead()])), });
+    findConsentLeadsByPhone: findConsentLeadsByPhone || (async () => json([lead({ id: "native-1" })])), });
 }
 function assertFinalizedAuditOnly(calls, expectedReason) {
   assert.deepEqual(calls.finalize.map(({ outcome }) => outcome), [{ outcome: "left_disabled", reason: expectedReason }]);

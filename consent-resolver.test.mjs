@@ -3,7 +3,7 @@ import test from "node:test";
 import { resolveCanonicalConsent } from "./consent-resolver.mjs";
 
 const CANONICAL_BOARD_ID = "canonical-board-for-test";
-const STATE_SOURCE = "rep_verified_controlled_state_dropdown";
+const STATE_SOURCE = "sales_board_business_state";
 const PHONE = "15551234567";
 const json = (value) => JSON.stringify(value);
 
@@ -23,17 +23,27 @@ function resolver(overrides = {}) {
   };
 }
 
-test("parses a native JSON object string into a verified canonical record without phone fallback", async () => {
+test("trusts a native item only after the same item has unique exact phone association", async () => {
   let phoneLookups = 0;
   const result = await resolveCanonicalConsent({
     nativeItemId: "native-lead", phoneDigits: PHONE,
     ...resolver({
       getConsentLeadById: async (id) => json(lead({ id, state: verifiedState(" tx ") })),
-      findConsentLeadsByPhone: async () => { phoneLookups += 1; return json([lead()]); },
+      findConsentLeadsByPhone: async () => { phoneLookups += 1; return json([lead({ id: "native-lead" })]); },
     }),
   });
   assert.deepEqual(result, { item: { id: "native-lead", boardId: CANONICAL_BOARD_ID, state: "TX" }, method: "native_item_id", reason: null });
-  assert.equal(phoneLookups, 0);
+  assert.equal(phoneLookups, 1);
+});
+
+test("native item fails closed when exact phone association is absent, ambiguous, or belongs to another item", async () => {
+  for (const matches of [[], [lead({ id: "native-lead" }), lead({ id: "two" })], [lead({ id: "different" })]]) {
+    const result = await resolveCanonicalConsent({
+      nativeItemId: "native-lead", phoneDigits: PHONE,
+      ...resolver({ getConsentLeadById: async () => json(lead({ id: "native-lead" })), findConsentLeadsByPhone: async () => json(matches) }),
+    });
+    assert.equal(result.item, null);
+  }
 });
 
 test("parses a unique phone JSON array string after a null native lookup", async () => {

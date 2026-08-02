@@ -3,8 +3,8 @@
   "controllerStatus": "DISABLED",
   "operatingMode": "AUDIT_ONLY",
   "recordingActionsPermitted": false,
-  "canonicalBoard": "Callbacks",
-  "authoritativeStateSource": "rep_verified_controlled_state_dropdown",
+  "canonicalBoard": "Sales Board 7727339040",
+  "authoritativeStateSource": "sales_board_business_state",
   "mapsResearch": "candidate_evidence_only",
   "approvalGate": {
     "required": true,

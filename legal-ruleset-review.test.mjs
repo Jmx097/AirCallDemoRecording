@@ -25,8 +25,8 @@ function approvedRecord() {
       executiveApprover: { name: "Executive", completedAt, approvalReference: "approval-2029-04" },
     },
     requiredJurisdictionEvidence: {
-      businessStateSource: "Callbacks.State: rep-verified controlled dropdown",
-      humanRecordingConsent: "Callbacks.Recording Consent: exact value Verified — Permit Recording",
+      businessStateSource: "Sales Board 7727339040.State text_2: business-address State",
+      humanRecordingConsent: "Separate approved human-consent control: not configured in audit runtime",
       legalAuthority: "Per-jurisdiction counsel-reviewed authority and effective-date evidence",
       reviewedAt,
       expiresAt,
@@ -71,8 +71,8 @@ test("requires every named review role with its exact reference field and comple
 
 test("requires exact canonical evidence, current review, and unexpired evidence", () => {
   for (const [key, value] of [
-    ["businessStateSource", "rep_verified_controlled_state_dropdown"],
-    ["humanRecordingConsent", "Verified — Permit Recording"],
+    ["businessStateSource", "wrong_state_source"],
+    ["humanRecordingConsent", "unapproved_consent_control"],
     ["legalAuthority", ""],
     ["reviewedAt", toIso(86_400_000)],
     ["expiresAt", toIso(0)],

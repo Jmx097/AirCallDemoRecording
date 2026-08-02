@@ -13,9 +13,17 @@ const MAX_MONDAY_RESPONSE_BYTES = 256 * 1024;
 const MAX_PORT = 65535;
 const DEFAULT_STARTUP_TIMEOUT_MS = 5_000;
 const AUDIT_RULESET = Object.freeze({
-  // This is a disabled audit fixture, not a legal ruleset or authorization.
-  version: "audit-only-disabled-v1",
-  states: Object.freeze({ AL: false, AK: false, AZ: false, AR: false, CA: false, CO: false, CT: false, DE: false, FL: false, GA: false, HI: false, ID: false, IL: false, IN: false, IA: false, KS: false, KY: false, LA: false, ME: false, MD: false, MA: false, MI: false, MN: false, MS: false, MO: false, MT: false, NE: false, NV: false, NH: false, NJ: false, NM: false, NY: false, NC: false, ND: false, OH: false, OK: false, OR: false, PA: false, RI: false, SC: false, SD: false, TN: false, TX: false, UT: false, VT: false, VA: false, WA: false, WV: false, WI: false, WY: false }),
+  // Approved for audit classification only. Even an eligible result remains
+  // left_disabled because this runtime has no provider recording-action path.
+  version: "timberline-audit-classification-2026-08-02.1",
+  states: Object.freeze({
+    AL: true, AK: true, AZ: true, AR: true, CA: false, CO: true, CT: false, DE: false, FL: false,
+    GA: true, HI: true, ID: true, IL: false, IN: true, IA: true, KS: true, KY: true, LA: true,
+    ME: true, MD: false, MA: false, MI: false, MN: true, MS: true, MO: true, MT: false, NE: true,
+    NV: false, NH: false, NJ: true, NM: true, NY: true, NC: true, ND: true, OH: true, OK: true,
+    OR: false, PA: false, RI: true, SC: true, SD: true, TN: true, TX: true, UT: true, VT: true,
+    VA: true, WA: false, WV: true, WI: true, WY: true,
+  }),
 });
 const APPROVED_AUDIT_RULESET_VERSIONS = new Set([AUDIT_RULESET.version]);
 const ALLOWED_QUERY_TEXT = new Set([MONDAY_CALLBACK_READ_ONLY_QUERIES.native, MONDAY_CALLBACK_READ_ONLY_QUERIES.phoneLookup]);
@@ -31,8 +39,8 @@ export function readAuditOnlyRuntimeConfig(env = process.env) {
   const port = optionalPort(safeEnv.AIRCALL_AUDIT_PORT);
   if (safeEnv.AIRCALL_AUDIT_HOST !== undefined && safeEnv.AIRCALL_AUDIT_HOST !== HOST) throw new TypeError("invalid_audit_runtime_host");
   return Object.freeze({ expectedWebhookToken: token, databaseUrl, mondayToken, host: HOST, port,
-    canonicalBoardId: "9062504443", stateColumnId: "dropdown_mm5ht9fz", consentColumnId: "dropdown_mm5rm7vc", phoneColumnIds: Object.freeze(["phone_mkqkk6nv", "phone_mkqk71tf"]),
-    stateSource: "rep_verified_controlled_state_dropdown", ruleset: AUDIT_RULESET, approvedRulesetVersions: APPROVED_AUDIT_RULESET_VERSIONS });
+    canonicalBoardId: "7727339040", stateColumnId: "text_2", phoneColumnIds: Object.freeze(["phone__1", "dup__of_phone7__1", "phone_mkrgdn4"]),
+    stateSource: "sales_board_business_state", ruleset: AUDIT_RULESET, approvedRulesetVersions: APPROVED_AUDIT_RULESET_VERSIONS });
 }
 
 /** Creates the only Monday transport used by this runtime: fixed, query-only HTTPS POSTs. */
@@ -65,7 +73,7 @@ export function createAuditOnlyRuntime({ env = process.env, createStore = create
   const mondayQuery = createReadOnlyMondayQuery({ mondayToken: config.mondayToken, fetchImpl });
   let receiver;
   try {
-    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, consentColumnId: config.consentColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store: receiverStore, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
+    receiver = createReceiver({ expectedWebhookToken: config.expectedWebhookToken, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mondayQuery, store: receiverStore, ruleset: config.ruleset, approvedRulesetVersions: config.approvedRulesetVersions, allowedPhoneColumnTypes: ["phone"], host: config.host, port: config.port });
   } catch (error) {
     void closeQuietly(store);
     throw error;
@@ -188,7 +196,7 @@ function sanitizeMondayResponse(request, value) {
 }
 function selectedColumns(variables) { if (!plainRecord(variables) || !Array.isArray(variables.columnIds) || variables.columnIds.length < 1 || variables.columnIds.length > 4 || variables.columnIds.some((id) => typeof id !== "string") || new Set(variables.columnIds).size !== variables.columnIds.length) return null; return new Set(variables.columnIds); }
 function sanitizeItems(items, limit, selectedColumnIds) { if (!Array.isArray(items) || items.length > limit) return null; const sanitized = []; for (const item of items) { if (!plainRecord(item) || typeof item.id !== "string" || !plainRecord(item.board) || typeof item.board.id !== "string" || !Array.isArray(item.column_values) || item.column_values.length > selectedColumnIds.size) return null; const columns = []; for (const column of item.column_values) { if (!plainRecord(column) || typeof column.id !== "string" || !selectedColumnIds.has(column.id) || typeof column.type !== "string" || !(typeof column.text === "string" || column.text === null) || (typeof column.text === "string" && column.text.length > 256)) return null; columns.push({ id: column.id, type: column.type, text: column.text ?? "" }); } sanitized.push({ id: item.id, board: { id: item.board.id }, column_values: columns }); } return sanitized; }
-function publicRuntimeConfig(config) { return Object.freeze({ host: config.host, port: config.port, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, consentColumnId: config.consentColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mode: "audit_only", recordingActionsPermitted: false }); }
+function publicRuntimeConfig(config) { return Object.freeze({ host: config.host, port: config.port, canonicalBoardId: config.canonicalBoardId, stateColumnId: config.stateColumnId, phoneColumnIds: config.phoneColumnIds, stateSource: config.stateSource, mode: "audit_only", recordingActionsPermitted: false }); }
 async function closeQuietly(store) { try { await store.close(); } catch { /* no dependency details cross the runtime boundary */ } }
 
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) void main();

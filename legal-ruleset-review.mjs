@@ -15,8 +15,8 @@ const REVIEW_ROLES = Object.freeze({
 });
 const EVIDENCE_KEYS = ["businessStateSource", "humanRecordingConsent", "legalAuthority", "reviewedAt", "expiresAt"];
 const JURISDICTION_KEYS = ["state", "eligible", "legalAuthorityReference", "reviewedAt", "expiresAt"];
-const CANONICAL_STATE_SOURCE = "Callbacks.State: rep-verified controlled dropdown";
-const CANONICAL_HUMAN_CONSENT = "Callbacks.Recording Consent: exact value Verified — Permit Recording";
+const CANONICAL_STATE_SOURCE = "Sales Board 7727339040.State text_2: business-address State";
+const CANONICAL_HUMAN_CONSENT = "Separate approved human-consent control: not configured in audit runtime";
 const US_STATES = new Set([
   "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
 ]);

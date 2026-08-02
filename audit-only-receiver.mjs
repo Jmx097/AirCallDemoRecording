@@ -20,7 +20,7 @@ const ALLOWED_REASONS = new Set([
   "resolver_not_found", "resolver_not_unique", "resolver_denied",
 ]);
 const CONFIG_KEYS = new Set([
-  "expectedWebhookToken", "canonicalBoardId", "stateColumnId", "consentColumnId", "phoneColumnIds", "stateSource", "mondayQuery",
+  "expectedWebhookToken", "canonicalBoardId", "stateColumnId", "phoneColumnIds", "stateSource", "mondayQuery",
   "store", "ruleset", "approvedRulesetVersions", "allowedPhoneColumnTypes", "host", "port", "maxBodyBytes",
   "shutdownTimeoutMs", "maxInFlight", "readinessTimeoutMs",
 ]);
@@ -33,7 +33,7 @@ export function createAuditOnlyReceiver(config) {
   let monday; let decisionService;
   try {
     monday = createMondayCallbackAdapter({
-      canonicalBoardId: safe.canonicalBoardId, stateColumnId: safe.stateColumnId, consentColumnId: safe.consentColumnId, phoneColumnIds: safe.phoneColumnIds,
+      canonicalBoardId: safe.canonicalBoardId, stateColumnId: safe.stateColumnId, phoneColumnIds: safe.phoneColumnIds,
       stateSource: safe.stateSource, query: safe.mondayQuery, ...(safe.allowedPhoneColumnTypes ? { allowedPhoneColumnTypes: safe.allowedPhoneColumnTypes } : {}),
     });
     decisionService = createConsentDecisionService({
@@ -170,12 +170,12 @@ function snapshotConfig(config) {
       if (!("value" in descriptor)) throw new Error("getter");
       return descriptor.value;
     };
-    const required = ["expectedWebhookToken", "canonicalBoardId", "stateColumnId", "consentColumnId", "phoneColumnIds", "stateSource", "mondayQuery", "store", "ruleset", "approvedRulesetVersions"];
+    const required = ["expectedWebhookToken", "canonicalBoardId", "stateColumnId", "phoneColumnIds", "stateSource", "mondayQuery", "store", "ruleset", "approvedRulesetVersions"];
     if (required.some((name) => value(name) == null)) return null;
-    const expectedWebhookToken = value("expectedWebhookToken"); const canonicalBoardId = value("canonicalBoardId"); const stateColumnId = value("stateColumnId"); const consentColumnId = value("consentColumnId"); const stateSource = value("stateSource");
+    const expectedWebhookToken = value("expectedWebhookToken"); const canonicalBoardId = value("canonicalBoardId"); const stateColumnId = value("stateColumnId"); const stateSource = value("stateSource");
     const phoneColumnIds = value("phoneColumnIds"); const mondayQuery = value("mondayQuery"); const store = value("store"); const ruleset = value("ruleset"); const approvedRulesetVersions = value("approvedRulesetVersions");
     const allowedPhoneColumnTypes = value("allowedPhoneColumnTypes", true); const host = value("host", true) ?? "127.0.0.1"; const port = value("port", true) ?? 0; const maxBodyBytes = value("maxBodyBytes", true) ?? MAX_BODY_BYTES; const shutdownTimeoutMs = value("shutdownTimeoutMs", true) ?? DEFAULT_SHUTDOWN_TIMEOUT_MS; const maxInFlight = value("maxInFlight", true) ?? DEFAULT_MAX_IN_FLIGHT; const readinessTimeoutMs = value("readinessTimeoutMs", true) ?? DEFAULT_READINESS_TIMEOUT_MS;
-    if (![expectedWebhookToken, canonicalBoardId, stateColumnId, consentColumnId, stateSource].every((x) => typeof x === "string" && x.length > 0)
+    if (![expectedWebhookToken, canonicalBoardId, stateColumnId, stateSource].every((x) => typeof x === "string" && x.length > 0)
       || !plainArray(phoneColumnIds) || typeof mondayQuery !== "function" || !plainRecord(store) || !plainRecord(ruleset) || !(approvedRulesetVersions instanceof Set)
       || !["127.0.0.1", "::1"].includes(host) || !Number.isInteger(port) || port < 0 || port > 65535
       || !Number.isInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > MAX_BODY_BYTES
@@ -187,7 +187,7 @@ function snapshotConfig(config) {
     const ready = ownData(store, "ready"); const initialize = ownData(store, "initialize");
     if (ready !== undefined && typeof ready !== "function") return null;
     if (initialize !== undefined && typeof initialize !== "function") return null;
-    return Object.freeze({ expectedWebhookToken, canonicalBoardId, stateColumnId, consentColumnId, phoneColumnIds: Object.freeze([...phoneColumnIds]), stateSource, mondayQuery, store, ruleset, approvedRulesetVersions, allowedPhoneColumnTypes: allowedPhoneColumnTypes && Object.freeze([...allowedPhoneColumnTypes]), host, port, maxBodyBytes, shutdownTimeoutMs, maxInFlight, readinessTimeoutMs, ready, initialize });
+    return Object.freeze({ expectedWebhookToken, canonicalBoardId, stateColumnId, phoneColumnIds: Object.freeze([...phoneColumnIds]), stateSource, mondayQuery, store, ruleset, approvedRulesetVersions, allowedPhoneColumnTypes: allowedPhoneColumnTypes && Object.freeze([...allowedPhoneColumnTypes]), host, port, maxBodyBytes, shutdownTimeoutMs, maxInFlight, readinessTimeoutMs, ready, initialize });
   } catch { return null; }
 }
 function plainRecord(value) { return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype; }
