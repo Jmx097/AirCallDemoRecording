@@ -98,6 +98,8 @@ test("schema readiness verifies fixed board, exact column types, required dropdo
   } });
   assert.equal(await make().checkSchema(), true);
   assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: ["Verified — Permit Recording", "Verified — Do Not Record"], allow_multiple_selection: false }); return value; }).checkSchema(), true);
+  assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ id: 1, name: "Verified — Permit Recording" }, { id: 2, name: "Verified — Do Not Record" }], deactivated_labels: [], limit_select: true, label_limit_count: 1 }); return value; }).checkSchema(), true);
+  assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ name: "Verified — Permit Recording" }, { name: "Verified — Do Not Record" }], limit_select: true, label_limit_count: 2 }); return value; }).checkSchema(), false);
   assert.equal(await make((value) => { value[4].type = "status"; return value; }).checkSchema(), false);
   assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ name: "Verified — Permit Recording" }, { name: "Verified — Do Not Record" }], allow_multiple_selection: true }); return value; }).checkSchema(), false);
   assert.equal(await make((value) => { value[4].settings_str = JSON.stringify({ labels: [{ name: "Verified — Permit Recording" }], allow_multiple_selection: false }); return value; }).checkSchema(), false);

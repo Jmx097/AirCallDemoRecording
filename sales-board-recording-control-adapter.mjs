@@ -84,7 +84,8 @@ function validDropdownSettings(raw) {
     if (labels.length !== REQUIRED_CONSENT_LABELS.length || labels.some((x) => x === null) || new Set(labels).size !== labels.length
       || !REQUIRED_CONSENT_LABELS.every((label) => labels.filter((x) => x === label).length === 1)) return false;
     const multiple = settings.allow_multiple_selection ?? settings.allowMultipleSelection ?? settings.allow_multiple;
-    return multiple === false;
+    const limitedToOne = settings.limit_select === true && settings.label_limit_count === 1;
+    return multiple === false || (multiple === undefined && limitedToOne);
   } catch { return false; }
 }
 function normalizedPhone(value) {
