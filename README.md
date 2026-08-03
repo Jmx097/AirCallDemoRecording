@@ -1,4 +1,10 @@
-# Timberline Aircall/Monday Recording Controller
+# Timberline Aircall Recording Link → Monday Association
+
+> **Current production lane:** `recording-link-runtime.mjs` receives authenticated Aircall `call.ended` / `call.comm_assets_generated` events and associates an already-available recording reference to exactly one Sales Board record. Aircall governs recording, consent, retention, and deletion; this lane cannot control recording.
+>
+> **Historical code below:** the older automatic recording-control pilot is retained only for audit/history. Its service is action-disabled and must not be activated for this workflow.
+
+# Historical: Timberline Aircall/Monday Recording Controller
 
 This repository contains two deliberately separated runtimes: the live **audit-only** receiver and a fail-closed **automatic recording control** plane that is staged disabled until an exact pilot approval is installed.
 
