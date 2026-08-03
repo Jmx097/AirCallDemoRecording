@@ -81,12 +81,16 @@ Dave must complete these steps for **every** test or pilot call unless a later, 
 4. Confirm Dave is using Aircall user `1980591` and **Direct Line - Admin - Dave Donovan**, number ID `1303588`.
 5. Ask and confirm where every remote party is physically located for this call. Every party must be in Texas. If another party joins, repeat the location and consent checks before proceeding; otherwise do not record.
 
-### B. Obtain current consent
+### B. Obtain current pre-call consent
 
-1. Before permitting recording, clearly tell every remote party that the call will be recorded and state the recording purpose.
-2. Ask for an unambiguous affirmative response from every remote party.
-3. If a party declines, hesitates, conditions consent, cannot answer, withdraws consent, or location remains uncertain, do not permit recording. Set `Verified — Do Not Record` if an explicit denial should be preserved; otherwise leave the field blank.
-4. If consent changes after recording begins, end the call immediately and invoke the kill switch. The controller has no pause/stop action, so do not rely on it to stop an active recording. Use a separately verified Aircall UI/administrative stop control only if the approved incident procedure identifies one, then follow incident response in the handoff runbook. Do not continue on an assumption that the earlier consent remains valid.
+Because the automatic trigger is `call.answered`, all consent and location evidence must exist **before dialing**. The pilot must not rely on consent spoken after the call is answered.
+
+1. Immediately before dialing, contact every intended remote party through a documented pre-call channel controlled by that party.
+2. Clearly disclose that the forthcoming Aircall call will be recorded and state the recording purpose.
+3. Obtain an unambiguous affirmative response from every intended remote party and confirmation that each will be physically in Texas for the call.
+4. The evidence must identify the specific forthcoming test/call and be recent enough to support the parties' location at call time. Standing, blanket, historical, inferred, or batch consent is invalid.
+5. If a party declines, hesitates, conditions consent, cannot answer, withdraws consent, or location remains uncertain, do not dial with Permit set. Select `Verified — Do Not Record` if an explicit denial should be preserved; otherwise leave the field blank.
+6. If any party or location changes before or during the call, the pre-call authorization is invalid. End the call and invoke the kill switch because the controller has no pause/stop action.
 
 ### C. Create the evidence before Permit
 
@@ -94,7 +98,7 @@ Before selecting Permit, Dave must create an auditable entry in the call/custome
 
 - UTC timestamp of verification;
 - Dave Donovan as verifier;
-- source of consent (for example, verbal consent on the current call);
+- source of consent (the documented pre-call channel and response);
 - basis: all remote parties identified, each party's current physical location confirmed as Texas, disclosure made, purpose stated, and each party's affirmative response;
 - the specific call/test reference and destination;
 - any restrictions stated by a party; and
@@ -127,7 +131,7 @@ Preconditions:
 - the kill switch has been rehearsed while disabled;
 - there are zero unresolved `dispatching` or `outcome_unknown` rows;
 - Dave creates a temporary, clearly identified non-customer Sales Board test item with exact test phone, `text_2 = TX`, and blank consent;
-- the test participant confirms current physical presence in Texas and gives current affirmative consent; and
+- the test participant confirms through the documented pre-call channel that they will be physically present in Texas and gives affirmative consent for the specific forthcoming call; and
 - Dave records the required evidence, then sets Permit.
 
 Place one call only, using user `1980591`, number `1303588`, and the live-provided test destination. Success requires the acceptance evidence defined in the handoff runbook; an HTTP success or queued action alone is not sufficient. Whether the test succeeds or fails, reset consent to blank, delete or sanitize the temporary test record according to approved test-data handling, and reconcile the action before another attempt. A second live attempt requires a fresh go/no-go decision and fresh per-call consent.

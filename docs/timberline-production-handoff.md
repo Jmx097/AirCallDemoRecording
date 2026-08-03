@@ -24,7 +24,7 @@ This runbook controls a single, conservative production pilot. It does not itsel
 | Audit access | Dave and Jon only |
 | Retention | 30 days, then Dave/Jon review |
 
-The controller can only request `resume_recording`; it is not a general record/pause manager. It fails closed on mismatched scope and uses at-most-once dispatch. State alone is never authorization; Dave's fresh call-specific consent record and exact Permit value are mandatory operational prerequisites.
+The controller can only request `resume_recording`; it is not a general record/pause manager. It fails closed on mismatched scope and uses at-most-once dispatch. State alone is never authorization. Because automatic control is triggered by `call.answered`, Dave must obtain and document fresh affirmative consent plus all-parties-in-Texas location **before dialing**, then set the exact Permit value. Consent spoken only after answer cannot authorize this automatic workflow.
 
 ## 2. Ownership and contact sheet
 
