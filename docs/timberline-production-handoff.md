@@ -155,7 +155,7 @@ Activation is a two-person change: deployment/database operator executes; Dave v
    Set the deployment ID, public key, database/Monday/Aircall credentials, four independent recording secrets, capability key ID/keyring, and loopback port from the secret/config manager. Do not paste values into the change record.
 6. Restart while the database action control remains false. Confirm `/ready` reports `ready_for_activation`, not `actively_controlling`; `actionsEnabled=false` and no worker/provider authority must remain visible.
 7. Reconfirm schema, activation expiry, zero unknown capability-key IDs, and zero unresolved `dispatching`/`outcome_unknown` rows.
-8. Using the approved administrative invocation of the store API, call `activateWithAttestation(approval, metadata)` with the verified artifact and recorded change correlation. There is intentionally no ordinary `setActionsEnabled(true)` path. The production deployment procedure must name and peer-review the actual administrative wrapper before this step; do not invent an ad hoc console command during the window.
+8. Run `node recording-control-admin.mjs activate --artifact <approval.json> --correlation <8-64-lowercase-hex>` under the managed service account. Confirm its booleans/epoch-only output reports `actionsEnabled=true`. The CLI validates the full armed runtime configuration and invokes the exact-scope attestation path; there is intentionally no ordinary enable path. Do not invent an ad hoc console command during the window.
 9. Restart/initialize authority if required by the service manager. Confirm `/ready` becomes `actively_controlling` and shows: DB/schema healthy, exact activation match, actions enabled, worker healthy, provider and worker authority present, reconciliation count zero, and unknown key count zero.
 10. If any check differs, invoke the kill switch immediately and execute rollback. Do not troubleshoot while enabled.
 11. Dave performs the single live test from the SOP using the destination supplied live at execution time. The destination must never be a customer.
@@ -168,7 +168,7 @@ Activation is a two-person change: deployment/database operator executes; Dave v
 
 Dave, Jon, or the authorized operator may disable without approval. In an emergency, do not wait for diagnosis:
 
-1. Call `store.setActionsEnabled(false, {reasonCode:'emergency_disable', correlation:'<approved-redacted-correlation>'})` through the pre-approved administrative wrapper.
+1. Run `node recording-control-admin.mjs disable --reason emergency_disable --correlation <8-64-lowercase-hex>`. This break-glass command requires only `AIRCALL_CONTROL_DATABASE_URL`; do not delay it to restore other runtime secrets or dependencies. Confirm its redacted output reports `actionsEnabled=false` and record the returned epoch.
 2. Confirm the database control row is false and `control_epoch` increased.
 3. Stop the worker/control service and remove provider authority. Keep webhook ingress disabled or routed to a safe deny response while preserving only minimal metadata.
 4. Confirm readiness is no longer `actively_controlling` and no new provider actions are dispatched.
@@ -180,7 +180,7 @@ A disable that commits before dispatch prevents it. If disable waits behind a di
 ### Planned rollback
 
 1. Prevent new calls/test actions; ask Dave to set relevant temporary Permit values to blank or `Verified — Do Not Record` as appropriate.
-2. Use `maintenance_disable` through the approved administrative wrapper.
+2. Run `node recording-control-admin.mjs disable --reason maintenance_disable --correlation <8-64-lowercase-hex>`.
 3. Confirm false control state and incremented epoch; stop worker/provider authority.
 4. Revert service configuration to `RECORDING_CONTROL_MODE=DISABLED` and remove `CONTROL_ENABLED=true`, pilot lists, and provider credentials from runtime authority (retain secrets only in the secret manager as policy requires).
 5. Roll back application release only after disabling. Do not reverse migration 002 or delete audit/outbox rows as a routine rollback.

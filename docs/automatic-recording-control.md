@@ -33,7 +33,18 @@ node recording-activation-cli.mjs verify approval.json scope.json \
 
 Artifacts use canonical base64 Ed25519 signatures. Key and signature parsing rejects noncanonical base64, noncanonical DER, and non-Ed25519 key types. Expiry and exact deployment/policy/pilot/consent scope checks are unchanged.
 
-The administrator calls `store.activateWithAttestation(approval, metadata)`. `setActionsEnabled(true)` always throws. Every enable or disable increments `control_epoch`; a new deployment cannot inherit a prior TRUE value. Disable requires no approval: `setActionsEnabled(false, {reasonCode:'emergency_disable'})`.
+Use the reviewed administrative CLI; do not construct a store or run ad hoc SQL during the change window:
+
+```sh
+node recording-control-admin.mjs activate --artifact ./approval.json --correlation 0123456789abcdef
+node recording-control-admin.mjs disable --reason emergency_disable --correlation 0123456789abcdef
+# planned stop:
+node recording-control-admin.mjs disable --reason maintenance_disable --correlation 0123456789abcdef
+```
+
+Correlations are 8–64 lowercase hexadecimal characters. Activation reads and validates the complete runtime environment, requires `envArmed=true`, rejects symlink/non-regular/malformed/non-object artifacts and artifacts over 64 KiB, then calls `activateWithAttestation` with the exact runtime keyring, public approval key, database, and scope. `setActionsEnabled(true)` still always throws; there is no non-attested enable command. Success output contains only `actionsEnabled` and `controlEpoch`.
+
+The disable command is the break-glass path. It requires only `AIRCALL_CONTROL_DATABASE_URL`, not the rest of runtime configuration or an approval artifact. It takes a PostgreSQL transaction advisory lock and the singleton control-row lock in a serializable transaction, sets false, increments `control_epoch`, and appends the matching reason/correlation audit row before commit. Errors are fixed/redacted and fail closed. Every enable or disable increments `control_epoch`; a new deployment cannot inherit a prior TRUE value.
 
 ## Dispatch safety and incident handling
 
