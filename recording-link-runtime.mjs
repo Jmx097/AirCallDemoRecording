@@ -59,8 +59,8 @@ function diagnoseRejectedEvent(raw, headers, expectedToken) {
   console.warn(JSON.stringify(details));
 }
 
-export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch, decisionStateForCall = auditedState } = {}) {
-  if (!config || typeof fetchImpl !== "function") throw new TypeError("invalid_runtime_config");
+export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch, decisionStateForCall = auditedState, retentionAuditForCall = retentionAudit } = {}) {
+  if (!config || typeof fetchImpl !== "function" || typeof decisionStateForCall !== "function" || typeof retentionAuditForCall !== "function") throw new TypeError("invalid_runtime_config");
   const inFlight = new Map();
   const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true, service: "aircall-recording-link", triggerBoardId: SALES_BOARD_ID, targetBoardId: CALLS_BOARD_ID, targetColumnId: RECORDING_COLUMN });
@@ -83,11 +83,11 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
     const state = decisionStateForCall(event.callId);
     if (!(state in RULESET.states)) return "state_decision_unavailable";
     if (RULESET.states[state] === false) {
-      const callRows = await findUniqueCallRow(event.callId);
-      if (callRows.length === 1) await wipeLink(callRows[0]);
-      const deleted = await deleteRecording(event.callId);
-      retentionAudit(event.callId, state, deleted ? "provider_delete_requested" : "provider_delete_failed");
-      return deleted ? "two_party_link_wiped_delete_requested" : "two_party_link_wiped_delete_failed";
+      // Do not delete or clear here. The staged finalizer requires a durable,
+      // audited two-party decision and observed provider deletion before it can
+      // resolve and clear one exact Monday Recording link.
+      retentionAuditForCall(event.callId, state, "two_party_finalization_staged");
+      return "two_party_finalization_staged";
     }
     let callRows = await findUniqueCallRow(event.callId);
     if (callRows.length > 1) return "ambiguous_call_row";
@@ -134,9 +134,6 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
     const values = JSON.stringify({ [RECORDING_COLUMN]: { url, text: "Aircall recording (expires per Aircall policy)" } });
     const d = await monday(q, { item: itemId, board: CALLS_BOARD_ID, values }); if (String(d?.change_multiple_column_values?.id) !== itemId) throw new Error("monday_write_failed");
   }
-  async function wipeLink(itemId) { const q = `mutation($item:ID!,$board:ID!,$values:JSON!){change_multiple_column_values(item_id:$item,board_id:$board,column_values:$values){id}}`; const d=await monday(q,{item:itemId,board:CALLS_BOARD_ID,values:JSON.stringify({[RECORDING_COLUMN]:null})}); if(String(d?.change_multiple_column_values?.id)!==itemId)throw new Error("monday_write_failed"); }
-  async function deleteRecording(callId) { try { const r=await fetchImpl(`https://api.aircall.io/v1/calls/${encodeURIComponent(callId)}/recording`,{method:"DELETE",headers:{Authorization:`Basic ${Buffer.from(`${config.aircallId}:${config.aircallKey}`).toString("base64")}`},signal:AbortSignal.timeout(8000)}); return r.ok; } catch { return false; } }
-  function retentionAudit(callId,state,outcome) { try { mkdirSync("/var/lib/aircall-recording-control",{recursive:true,mode:0o700}); appendFileSync(RETENTION_AUDIT,`${JSON.stringify({at:new Date().toISOString(),eventHash:createHash("sha256").update(callId).digest("hex"),state,outcome})}\n`,{mode:0o600}); } catch {} }
   async function monday(query, variables) {
     const r = await fetchImpl("https://api.monday.com/v2", { method: "POST", headers: { Authorization: config.mondayToken, "content-type": "application/json" }, body: JSON.stringify({ query, variables }), signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error("monday_http_failed"); const j = await r.json(); if (j.errors) throw new Error("monday_graphql_failed"); return j.data;
@@ -144,6 +141,7 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
   return Object.freeze({ start: () => new Promise((resolve, reject) => { server.once("error", reject); server.listen(config.port, config.host, () => { const address = server.address(); resolve(Object.freeze({ host: config.host, port: typeof address === "object" && address ? address.port : config.port })); }); }), close: () => new Promise((resolve) => server.close(() => resolve())) });
 }
 function auditedState(callId) { try { const hash=createHash("sha256").update(callId).digest("hex"); let state=null; for(const line of readFileSync("/var/lib/aircall-recording-control/decisions.jsonl","utf8").split("\n")){try{const x=JSON.parse(line); if(x.eventHash===hash&&typeof x.state==="string")state=x.state.trim().toUpperCase();}catch{}} return state; } catch { return null; } }
+function retentionAudit(callId,state,outcome) { try { mkdirSync("/var/lib/aircall-recording-control",{recursive:true,mode:0o700}); appendFileSync(RETENTION_AUDIT,`${JSON.stringify({at:new Date().toISOString(),eventHash:createHash("sha256").update(callId).digest("hex"),state,outcome})}\n`,{mode:0o600}); } catch {} }
 function recordingUrl(call) { for (const k of ["recording_short_url", "recording"]) if (typeof call?.[k] === "string" && HTTPS.test(call[k])) return call[k]; return null; }
 function equal(a, b) { if (typeof a !== "string" || typeof b !== "string") return false; return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest()); }
 function plain(v) { return v !== null && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
