@@ -59,7 +59,7 @@ function diagnoseRejectedEvent(raw, headers, expectedToken) {
   console.warn(JSON.stringify(details));
 }
 
-export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch } = {}) {
+export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch, decisionStateForCall = auditedState } = {}) {
   if (!config || typeof fetchImpl !== "function") throw new TypeError("invalid_runtime_config");
   const inFlight = new Map();
   const server = http.createServer(async (req, res) => {
@@ -80,7 +80,7 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
     if (!url) return "recording_not_ready";
     const salesMatches = await findUniqueSalesTrigger(event.phoneDigits);
     if (salesMatches.length !== 1) return salesMatches.length ? "ambiguous_sales_trigger" : "no_sales_trigger";
-    const state = salesMatches[0].state;
+    const state = decisionStateForCall(event.callId);
     if (!(state in RULESET.states)) return "state_decision_unavailable";
     if (RULESET.states[state] === false) {
       const callRows = await findUniqueCallRow(event.callId);
@@ -143,6 +143,7 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
   }
   return Object.freeze({ start: () => new Promise((resolve, reject) => { server.once("error", reject); server.listen(config.port, config.host, () => { const address = server.address(); resolve(Object.freeze({ host: config.host, port: typeof address === "object" && address ? address.port : config.port })); }); }), close: () => new Promise((resolve) => server.close(() => resolve())) });
 }
+function auditedState(callId) { try { const hash=createHash("sha256").update(callId).digest("hex"); let state=null; for(const line of readFileSync("/var/lib/aircall-recording-control/decisions.jsonl","utf8").split("\n")){try{const x=JSON.parse(line); if(x.eventHash===hash&&typeof x.state==="string")state=x.state.trim().toUpperCase();}catch{}} return state; } catch { return null; } }
 function recordingUrl(call) { for (const k of ["recording_short_url", "recording"]) if (typeof call?.[k] === "string" && HTTPS.test(call[k])) return call[k]; return null; }
 function equal(a, b) { if (typeof a !== "string" || typeof b !== "string") return false; return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest()); }
 function plain(v) { return v !== null && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
