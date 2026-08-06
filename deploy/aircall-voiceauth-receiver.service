@@ -1,0 +1,35 @@
+[Unit]
+Description=Timberline Aircall VoiceAuth tag receiver (non-destructive)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/plinko-founder-cockpit/bridge/aircall-recording-audit
+StateDirectory=aircall-recording-control
+StateDirectoryMode=0700
+EnvironmentFile=/root/.config/plinko-automations/aircall-recording-control.env
+ExecStart=/usr/bin/node /opt/plinko-founder-cockpit/bridge/aircall-recording-audit/timberline-voiceauth-receiver.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=35
+TimeoutStopSec=40
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

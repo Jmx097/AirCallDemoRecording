@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "timberline-state-pause-2026-08-05.2",
+  "controllerStatus": "ENABLED",
+  "operatingMode": "ACTIVE_PAUSE_ONLY",
+  "recordingActionsPermitted": true,
+  "canonicalBoard": "Sales Board 7727339040",
+  "authoritativeStateSource": "sales_board_business_state",
+  "associationMethod": "exact_unique_phone_across_approved_columns",
+  "scope": {
+    "pairCount": 26,
+    "sha256": "a4ed10ed88aee39efad8d083a46fbe041ad7129b21891218eb2dde1cf27917f7",
+    "expansionApprovedBy": ["Jonathan McLemore", "Dave Donovan"]
+  },
+  "providerDefault": {
+    "expectedLiveRecordingActivated": true,
+    "currentObserved": "verified_all_26_reconciled_scope_numbers_true",
+    "observedAt": "2026-08-05T17:00:00Z",
+    "requiredBeforeRestart": "Satisfied: all reconciled scoped Aircall numbers were read back with provider default recording on."
+  },
+  "actions": {
+    "onePartyState": "no_action_provider_default",
+    "twoPartyState": "pause_recording",
+    "unknownOrAmbiguousState": "no_action_fail_closed",
+    "automaticReplay": false
+  },
+  "legalRuleset": {
+    "version": "dave-original-sop-2026-08-03.v1",
+    "source": "approved 50-state operating ruleset"
+  },
+  "approvals": {
+    "jon": { "status": "APPROVED", "recordedAt": "2026-08-05T16:30:34Z" },
+    "dave": { "status": "APPROVED", "recordedAt": "2026-08-05T16:30:34Z" },
+    "legal": { "status": "APPROVED_ATTESTED", "evidenceReference": "operator-attestation-2026-08-05" },
+    "operations": { "status": "APPROVED_ATTESTED", "evidenceReference": "operator-attestation-2026-08-05" }
+  },
+  "audit": {
+    "redacted": true,
+    "retentionDays": 30,
+    "readers": ["Jonathan McLemore", "Dave Donovan"]
+  },
+  "notes": "Scope reconciled from the historical 47 pairs to 26 current Aircall user-default-number assignments under Jon and Dave's approved replacement-scope decision. Provider defaults were read back as enabled for all 26 scoped numbers before restart."
+}

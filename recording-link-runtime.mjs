@@ -1,6 +1,7 @@
 import http from "node:http";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { createProtectedTwoPartyStore } from "./two-party-finalizer-adapters.mjs";
 
 const RULESET = Object.freeze(JSON.parse(readFileSync(new URL("./policy/one-party-consent-states.v1.json", import.meta.url), "utf8")));
 const RETENTION_AUDIT = "/var/lib/aircall-recording-control/retention-decisions.jsonl";
@@ -9,7 +10,7 @@ const SALES_PHONE_COLUMNS = ["phone__1", "dup__of_phone7__1", "phone_mkrgdn4"];
 const CALLS_BOARD_ID = "18419412577";
 const CALL_ID_COLUMN = "text_mm4nwyyx";
 const RECORDING_COLUMN = "link_mm4n5qp";
-const EVENTS = new Set(["call.ended", "call.comm_assets_generated"]);
+const EVENTS = new Set(["call.answered", "call.ended", "call.comm_assets_generated"]);
 const PHONE = /^\d{10,15}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const HTTPS = /^https:\/\/[^\s]{1,2040}$/;
@@ -30,7 +31,9 @@ export function normalizeEvent(text, token) {
     const digits = typeof rawDigits === "string" && rawDigits.length <= 32 && /^[0-9+(). -]+$/.test(rawDigits) ? rawDigits.replace(/\D/g, "") : "";
     if (typeof id !== "string" || !ID.test(id) || !PHONE.test(digits)) return null;
     const url = recordingUrl(d);
-    return Object.freeze({ callId: id, phoneDigits: digits, url, event: p.event, key: createHash("sha256").update(`${p.event}\0${id}\0${url ?? "pending"}`).digest("hex") });
+    const correlation = callCorrelation(d, id, digits);
+    if (p.event === "call.answered" && !correlation) return null;
+    return Object.freeze({ callId: id, phoneDigits: digits, url, correlation, event: p.event, key: createHash("sha256").update(`${p.event}\0${id}\0${url ?? "pending"}`).digest("hex") });
   } catch { return null; }
 }
 
@@ -59,14 +62,19 @@ function diagnoseRejectedEvent(raw, headers, expectedToken) {
   console.warn(JSON.stringify(details));
 }
 
-export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch, decisionStateForCall = auditedState, retentionAuditForCall = retentionAudit } = {}) {
-  if (!config || typeof fetchImpl !== "function" || typeof decisionStateForCall !== "function" || typeof retentionAuditForCall !== "function") throw new TypeError("invalid_runtime_config");
+export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fetch, decisionStateForCall = auditedState, retentionAuditForCall = retentionAudit, correlationCapture = async () => ({ stored: false }) } = {}) {
+  if (!config || typeof fetchImpl !== "function" || typeof decisionStateForCall !== "function" || typeof retentionAuditForCall !== "function" || typeof correlationCapture !== "function") throw new TypeError("invalid_runtime_config");
   const inFlight = new Map();
   const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true, service: "aircall-recording-link", triggerBoardId: SALES_BOARD_ID, targetBoardId: CALLS_BOARD_ID, targetColumnId: RECORDING_COLUMN });
     if (req.method !== "POST" || req.url !== "/aircall/recording/link-events" || !/^application\/json(?:\s*;.*)?$/i.test(req.headers["content-type"] ?? "")) return send(res, 404, { accepted: false });
     const raw = await body(req, 128 * 1024); if (!raw) return send(res, 400, { accepted: false });
     const event = normalizeEvent(raw, config.webhookToken); if (!event) { diagnoseRejectedEvent(raw, req.headers, config.webhookToken); return send(res, 401, { accepted: false }); }
+    // The protected adapter can merge partial answer/asset observations. It is
+    // invoked only after the webhook token has been verified and never changes
+    // the legacy link path when no durable adapter has been configured.
+    if (event.correlation) await correlationCapture(event.correlation);
+    if (event.event === "call.answered") return send(res, 202, { accepted: true, outcome: "correlation_staged" });
     let pending = inFlight.get(event.callId);
     if (!pending) {
       pending = associate(event).finally(() => inFlight.delete(event.callId));
@@ -142,9 +150,22 @@ export function createRuntime({ config = readConfig(), fetchImpl = globalThis.fe
 }
 function auditedState(callId) { try { const hash=createHash("sha256").update(callId).digest("hex"); let state=null; for(const line of readFileSync("/var/lib/aircall-recording-control/decisions.jsonl","utf8").split("\n")){try{const x=JSON.parse(line); if(x.eventHash===hash&&typeof x.state==="string")state=x.state.trim().toUpperCase();}catch{}} return state; } catch { return null; } }
 function retentionAudit(callId,state,outcome) { try { mkdirSync("/var/lib/aircall-recording-control",{recursive:true,mode:0o700}); appendFileSync(RETENTION_AUDIT,`${JSON.stringify({at:new Date().toISOString(),eventHash:createHash("sha256").update(callId).digest("hex"),state,outcome})}\n`,{mode:0o600}); } catch {} }
+function callCorrelation(call, callId, externalPhone) {
+  const aircallNumber = typeof call?.number?.digits === "string" ? call.number.digits : typeof call?.number?.raw_digits === "string" ? call.number.raw_digits : typeof call?.aircall_number === "string" ? call.aircall_number : null;
+  const timestamp = value => { if (typeof value !== "string" && typeof value !== "number") return null; const ms = Date.parse(String(value)); return Number.isFinite(ms) ? new Date(ms).toISOString().replace(".000Z", "Z") : null; };
+  const correlation = { callId, externalPhone, aircallNumber, started: timestamp(call?.started_at ?? call?.started), answered: timestamp(call?.answered_at ?? call?.answered), ended: timestamp(call?.ended_at ?? call?.ended) };
+  return PHONE.test(String(aircallNumber ?? "").replace(/\D/g, "")) ? correlation : null;
+}
 function recordingUrl(call) { for (const k of ["recording_short_url", "recording"]) if (typeof call?.[k] === "string" && HTTPS.test(call[k])) return call[k]; return null; }
 function equal(a, b) { if (typeof a !== "string" || typeof b !== "string") return false; return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest()); }
 function plain(v) { return v !== null && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
 function body(req, max) { return new Promise((resolve) => { let n=0, a=[]; req.on("data", c => { n+=c.length; if(n<=max)a.push(c); }); req.on("end", () => resolve(n<=max ? Buffer.concat(a).toString("utf8") : null)); req.on("error", () => resolve(null)); }); }
 function send(res, status, value) { res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(value)); }
-if (process.argv[1] === new URL(import.meta.url).pathname) { const r = createRuntime(); r.start().catch(() => { process.exitCode = 1; }); }
+export function createConfiguredCorrelationCapture(env = process.env) {
+  const file = env.TWO_PARTY_FINALIZER_STORE || "/var/lib/aircall-recording-control/two-party-finalizer.protected.jsonl";
+  // Do not silently write a plaintext fallback. A missing protected key leaves
+  // link behavior unchanged but disables staging; the scheduler still cannot act.
+  if (typeof env.RECORDING_CAPABILITY_ACTIVE_KEY !== "string" || typeof env.RECORDING_IDEMPOTENCY_HMAC_KEY !== "string") return async () => ({ stored: false, reason: "protected_store_not_configured" });
+  return createProtectedTwoPartyStore({ file, capabilityKey: env.RECORDING_CAPABILITY_ACTIVE_KEY, hmacKey: env.RECORDING_IDEMPOTENCY_HMAC_KEY }).captureEvent;
+}
+if (process.argv[1] === new URL(import.meta.url).pathname) { const r = createRuntime({ correlationCapture: createConfiguredCorrelationCapture() }); r.start().catch(() => { process.exitCode = 1; }); }

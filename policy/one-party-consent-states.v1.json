@@ -1,0 +1,16 @@
+{
+  "version": "dave-original-sop-2026-08-03.v1",
+  "source": "Auto-Enable Aircall Recording for One-Party Consent States.docx",
+  "states": {
+    "AL": true, "AK": true, "AZ": true, "AR": true, "CA": false,
+    "CO": true, "CT": false, "DE": false, "FL": false, "GA": true,
+    "HI": true, "ID": true, "IL": false, "IN": true, "IA": true,
+    "KS": true, "KY": true, "LA": true, "ME": true, "MD": false,
+    "MA": false, "MI": false, "MN": true, "MS": true, "MO": true,
+    "MT": false, "NE": true, "NV": false, "NH": false, "NJ": true,
+    "NM": true, "NY": true, "NC": true, "ND": true, "OH": true,
+    "OK": true, "OR": false, "PA": false, "RI": true, "SC": true,
+    "SD": true, "TN": true, "TX": true, "UT": true, "VT": true,
+    "VA": true, "WA": false, "WV": true, "WI": true, "WY": true
+  }
+}

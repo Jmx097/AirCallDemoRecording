@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Timberline two-party retention worker every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=aircall-retention-worker.service
+
+[Install]
+WantedBy=timers.target

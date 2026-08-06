@@ -1,6 +1,7 @@
 import http from "node:http";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { createTimberlineAnswerTimeRetentionWriterFromEnv } from "./timberline-answer-time-retention-writer.mjs";
 
 const BOARD_ID = "7727339040";
 const PHONE_COLUMNS = ["phone__1", "dup__of_phone7__1", "phone_mkrgdn4"];
@@ -42,8 +43,10 @@ export function classifyControlEvent(payload, token, expectedToken, scope, enabl
   return "eligible_for_state_lookup";
 }
 
-export function createServer({ env = process.env, fetchImpl = globalThis.fetch, policy = ACTIVE_POLICY } = {}) {
+export function createServer({ env = process.env, fetchImpl = globalThis.fetch, policy = ACTIVE_POLICY, answerTimeRetentionWriter } = {}) {
   if (!validActivePolicy(policy)) throw new Error("invalid_active_state_pause_policy");
+  if (answerTimeRetentionWriter === undefined) answerTimeRetentionWriter = configuredAnswerTimeRetentionWriter(env, fetchImpl);
+  if (answerTimeRetentionWriter !== null && typeof answerTimeRetentionWriter?.recordAfterSuccessfulPause !== "function") throw new Error("invalid_answer_time_retention_writer");
   const required = (key) => { const value = env[key]; if (typeof value !== "string" || value.length < 16) throw new Error(`missing_${key}`); return value; };
   const token = required("AIRCALL_CONTROL_WEBHOOK_TOKEN");
   const aircallId = required("AIRCALL_API_ID"); const aircallKey = required("AIRCALL_API_KEY"); const mondayToken = required("MONDAY_API_TOKEN");
@@ -96,9 +99,27 @@ export function createServer({ env = process.env, fetchImpl = globalThis.fetch, 
       seen.add(eventHash); audit({ eventHash, state: item.state, outcome: "pause_dispatching" });
       const providerResult = await applyPause(callId);
       audit({ eventHash, state: item.state, outcome: `pause_${providerResult.status}` });
-      return send(response, 202, { accepted: true, outcome: `pause_${providerResult.status === "succeeded" ? "recording" : providerResult.status}` });
+      if (providerResult.status !== "succeeded") return send(response, 202, { accepted: true, outcome: `pause_${providerResult.status}` });
+      if (answerTimeRetentionWriter !== null) {
+        try {
+          await answerTimeRetentionWriter.recordAfterSuccessfulPause({ providerCallId: callId, externalPhoneDigits: normalizePhone(payload.data.raw_digits) });
+          audit({ eventHash, state: item.state, outcome: "answer_time_retention_recorded" });
+        } catch {
+          // The pause has already succeeded.  Do not retry it or take any deletion/CRM action.
+          audit({ eventHash, state: item.state, outcome: "answer_time_retention_unrecorded" });
+          return send(response, 202, { accepted: true, outcome: "pause_recording_retention_unrecorded" });
+        }
+      }
+      return send(response, 202, { accepted: true, outcome: "pause_recording" });
     } catch { return send(response, 503, { accepted: false, outcome: "dependency_failure" }); }
   });
+}
+function configuredAnswerTimeRetentionWriter(env, fetchImpl) {
+  const keys = ["TIMBERLINE_RETENTION_DATABASE_URL", "TIMBERLINE_RETENTION_CAPABILITY_KEY", "TIMBERLINE_RETENTION_CORRELATION_KEY"];
+  const supplied = keys.filter(key => typeof env[key] === "string" && env[key].length > 0);
+  if (supplied.length === 0) return null;
+  if (supplied.length !== keys.length) throw new Error("incomplete_timberline_retention_configuration");
+  return createTimberlineAnswerTimeRetentionWriterFromEnv(env, { fetchImpl });
 }
 function loadSeen(file) { const seen = new Set(); if (!existsSync(file)) return seen; for (const line of readFileSync(file, "utf8").split("\n")) try { const x = JSON.parse(line); if (typeof x?.eventHash === "string" && /^pause_(dispatching|succeeded|outcome_unknown)$/.test(x.outcome)) seen.add(x.eventHash); } catch {} return seen; }
 function validActivePolicy(policy) { return policy?.controllerStatus === "ENABLED" && policy.operatingMode === "ACTIVE_PAUSE_ONLY" && policy.recordingActionsPermitted === true && policy.legalRuleset?.version === RULESET.version && typeof policy.policyVersion === "string" && policy.policyVersion.length > 0 && Number.isSafeInteger(policy.scope?.pairCount) && policy.scope.pairCount > 0 && /^[a-f0-9]{64}$/.test(policy.scope?.sha256 ?? ""); }
