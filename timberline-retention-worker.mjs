@@ -28,15 +28,6 @@ export function createAircallRetentionAdapter({ aircallId, aircallKey, fetchImpl
       if (!response.ok) throw new Error("aircall_recording_reconciliation_failed");
       return false;
     },
-    async hasVoiceAuthTag(providerCallId) {
-      const tagId = process.env.AIRCALL_VOICEAUTH_TAG_ID;
-      if (!/^\d{1,20}$/.test(tagId ?? "")) return false;
-      requireId(providerCallId);
-      const response = await request(`/calls/${encodeURIComponent(providerCallId)}`, { method: "GET" });
-      if (!response.ok) throw new Error("aircall_voiceauth_read_failed");
-      const body = await response.json(); const call = body?.call ?? body;
-      return Array.isArray(call?.tags) && call.tags.some(tag => String(tag?.id ?? "") === tagId);
-    },
   });
 }
 

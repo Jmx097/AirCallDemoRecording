@@ -44,12 +44,8 @@ export function createTwoPartyRetentionFinalizer({ store, aircall, monday, corre
     const a = validateClaim(action);
     try {
       if (a.status === "delete_pending") {
-        // VoiceAuth is a retention override: never delete or clear the exact Calls row.
-        if (await voiceAuthOverride(a)) {
-          if (typeof store.markVoiceAuthRetained !== "function") throw new Error("voiceauth_transition_unavailable");
-          await store.markVoiceAuthRetained(a);
-          return Object.freeze({ outcome: "voiceauth_retained" });
-        }
+        // Every durable two-party action follows the same delayed deletion path.
+        // No call-tag exception can suppress provider deletion or exact Monday clearing.
         // A successful request is only delete_requested. Replays never re-dispatch.
         await aircall.deleteRecording(a.providerCallId);
         await store.markDeleteRequested(a);
@@ -70,11 +66,6 @@ export function createTwoPartyRetentionFinalizer({ store, aircall, monday, corre
     }
   }
 
-  async function voiceAuthOverride(action) {
-    const persisted = typeof store.hasVoiceAuthOverride === "function" ? await store.hasVoiceAuthOverride(action.providerCallKeyHash) : false;
-    if (persisted === true) return true;
-    return typeof aircall.hasVoiceAuthTag === "function" ? await aircall.hasVoiceAuthTag(action.providerCallId) === true : false;
-  }
   async function finalizeMonday(a) {
     // Bounded capability: exact board + item ID + one configured column only.
     await monday.clearExactRecordingLink({ boardId: TIMBERLINE_CALLS_BOARD, itemId: a.callsItemId, columnId: TIMBERLINE_RECORDING_LINK });
